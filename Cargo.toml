@@ -6,7 +6,7 @@ repository = "https://github.com/andygrove/bdt"
 authors = ["Andy Grove <andygrove73@gmail.com>"]
 description = "Simple utilities for viewing and converting various data file formats"
 license = "Apache-2.0"
-keywords = ["view", "convert", "parquet", "json", "avro", "csv"]
+keywords = ["convert", "parquet", "json", "avro", "csv"]
 edition = "2021"
 
 [dependencies]
