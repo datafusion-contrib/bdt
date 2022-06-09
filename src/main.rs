@@ -13,7 +13,9 @@
 // limitations under the License.
 
 use datafusion::prelude::*;
+use std::io::{Error, ErrorKind, Result};
 use std::path::PathBuf;
+use std::sync::Arc;
 use structopt::StructOpt;
 
 #[derive(Debug, StructOpt)]
@@ -23,25 +25,71 @@ enum Command {
         #[structopt(parse(from_os_str))]
         filename: PathBuf,
     },
+    Convert {
+        #[structopt(parse(from_os_str))]
+        input: PathBuf,
+        #[structopt(parse(from_os_str))]
+        output: PathBuf,
+    },
+}
+
+enum FileFormat {
+    Csv,
+    Json,
+    Parquet,
 }
 
 #[tokio::main]
 async fn main() {
     let cmd = Command::from_args();
 
+    let ctx = SessionContext::new();
+
     match cmd {
         Command::View { filename } => {
             let filename = filename.to_str().unwrap();
-            let ctx = SessionContext::new();
-            if filename.ends_with(".parquet") {
-                ctx.register_parquet("t", filename, ParquetReadOptions::default())
-                    .await
-                    .unwrap();
-            } else {
-                todo!("unsupported file extension")
-            }
-            let df = ctx.sql("SELECT * FROM t").await.unwrap();
+            let df = read(&ctx, filename).await.unwrap();
             df.show_limit(10).await.unwrap();
         }
+        Command::Convert { input, output } => {
+            let input_filename = input.to_str().unwrap();
+            let output_filename = output.to_str().unwrap();
+            let df = read(&ctx, input_filename).await.unwrap();
+            match file_format(output_filename).unwrap() {
+                FileFormat::Csv => df.write_parquet(output_filename, None).await.unwrap(),
+                FileFormat::Json => df.write_json(output_filename).await.unwrap(),
+                FileFormat::Parquet => df.write_csv(output_filename).await.unwrap(),
+            }
+        }
+    }
+}
+
+async fn read(ctx: &SessionContext, filename: &str) -> Result<Arc<DataFrame>> {
+    match file_format(filename).unwrap() {
+        FileFormat::Parquet => ctx
+            .register_parquet("t", filename, ParquetReadOptions::default())
+            .await
+            .unwrap(),
+        FileFormat::Csv => ctx
+            .register_csv("t", filename, CsvReadOptions::default())
+            .await
+            .unwrap(),
+        FileFormat::Json => ctx
+            .register_json("t", filename, NdJsonReadOptions::default())
+            .await
+            .unwrap(),
+    }
+    Ok(ctx.sql("SELECT * FROM t").await.unwrap())
+}
+
+fn file_format(filename: &str) -> Result<FileFormat> {
+    match filename.rfind('.') {
+        Some(i) => match &filename[i + 1..] {
+            "csv" => Ok(FileFormat::Csv),
+            "json" => Ok(FileFormat::Json),
+            "parquet" => Ok(FileFormat::Parquet),
+            _ => Err(Error::new(ErrorKind::Other, "")),
+        },
+        _ => Err(Error::new(ErrorKind::Other, "")),
     }
 }
