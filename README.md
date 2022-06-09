@@ -15,7 +15,7 @@ cargo install bdt
 ## Example
 
 ```sql
-$ bdt /path/to/file.parquet
+$ bdt view /path/to/file.parquet
 +-----------+------------------+--------+--------+----------+----------+---------+---------+-------------+-------------+
 | t_time_sk | t_time_id        | t_time | t_hour | t_minute | t_second | t_am_pm | t_shift | t_sub_shift | t_meal_time |
 +-----------+------------------+--------+--------+----------+----------+---------+---------+-------------+-------------+
