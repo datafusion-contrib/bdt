@@ -1,6 +1,8 @@
 # Boring Data Tool (bdt) 🤓
 
-Simple tools for viewing files and converting between different file formats (csv, avro, json, parquet, etc).
+Simple tools for viewing files and converting between different file formats (csv, avro, json, parquet, etc). 
+
+Powered by [DataFusion](https://crates.io/crates/datafusion).
 
 ## Prerequisites
 
