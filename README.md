@@ -1,4 +1,4 @@
-# Boring Data Tool (dbt) 🤓
+# Boring Data Tool (bdt) 🤓
 
 Simple tools for viewing files and converting between different file formats (csv, avro, json, parquet, etc).
 
