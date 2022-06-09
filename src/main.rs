@@ -24,6 +24,8 @@ enum Command {
     View {
         #[structopt(parse(from_os_str))]
         filename: PathBuf,
+        #[structopt(short, long)]
+        limit: Option<usize>,
     },
     Schema {
         #[structopt(parse(from_os_str))]
@@ -50,10 +52,19 @@ async fn main() -> Result<()> {
     let config = SessionConfig::new().with_information_schema(true);
     let ctx = SessionContext::with_config(config);
     match cmd {
-        Command::View { filename } => {
+        Command::View { filename, limit } => {
             let filename = parse_filename(&filename)?;
             let df = register_table(&ctx, "t", filename).await?;
-            df.show_limit(10).await?;
+            let limit = limit.unwrap_or(10);
+            if limit > 0 {
+                df.show_limit(limit).await?;
+                println!(
+                    "Limiting to {} rows. Run with --limit 0 to remove limit.",
+                    limit
+                );
+            } else {
+                df.show().await?;
+            }
         }
         Command::Schema { filename } => {
             let filename = parse_filename(&filename)?;
