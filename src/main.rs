@@ -14,7 +14,7 @@
 
 use datafusion::common::{DataFusionError, Result};
 use datafusion::prelude::*;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use structopt::StructOpt;
 
@@ -22,6 +22,10 @@ use structopt::StructOpt;
 #[structopt(name = "bdt", about = "Boring Data Tool")]
 enum Command {
     View {
+        #[structopt(parse(from_os_str))]
+        filename: PathBuf,
+    },
+    Schema {
         #[structopt(parse(from_os_str))]
         filename: PathBuf,
     },
@@ -34,6 +38,7 @@ enum Command {
 }
 
 enum FileFormat {
+    Avro,
     Csv,
     Json,
     Parquet,
@@ -42,18 +47,28 @@ enum FileFormat {
 #[tokio::main]
 async fn main() -> Result<()> {
     let cmd = Command::from_args();
-    let ctx = SessionContext::new();
+    let config = SessionConfig::new().with_information_schema(true);
+    let ctx = SessionContext::with_config(config);
     match cmd {
         Command::View { filename } => {
             let filename = parse_filename(&filename)?;
-            let df = read(&ctx, filename).await?;
+            let df = register_table(&ctx, "t", filename).await?;
             df.show_limit(10).await?;
+        }
+        Command::Schema { filename } => {
+            let filename = parse_filename(&filename)?;
+            let _ = register_table(&ctx, "t", filename).await?;
+            let sql = "SELECT column_name, data_type, is_nullable \
+                                FROM information_schema.columns WHERE table_name = 't'";
+            let df = ctx.sql(sql).await?;
+            df.show().await?;
         }
         Command::Convert { input, output } => {
             let input_filename = parse_filename(&input)?;
             let output_filename = parse_filename(&output)?;
-            let df = read(&ctx, input_filename).await?;
+            let df = register_table(&ctx, "t", input_filename).await?;
             match file_format(output_filename)? {
+                FileFormat::Avro => unimplemented!(),
                 FileFormat::Csv => df.write_parquet(output_filename, None).await?,
                 FileFormat::Json => df.write_json(output_filename).await?,
                 FileFormat::Parquet => df.write_csv(output_filename).await?,
@@ -63,33 +78,42 @@ async fn main() -> Result<()> {
     Ok(())
 }
 
-fn parse_filename(filename: &PathBuf) -> Result<&str> {
+fn parse_filename(filename: &Path) -> Result<&str> {
     filename
         .to_str()
-        .ok_or(DataFusionError::Internal("Invalid filename".to_string()))
+        .ok_or_else(|| DataFusionError::Internal("Invalid filename".to_string()))
 }
 
-async fn read(ctx: &SessionContext, filename: &str) -> Result<Arc<DataFrame>> {
+async fn register_table(
+    ctx: &SessionContext,
+    table_name: &str,
+    filename: &str,
+) -> Result<Arc<DataFrame>> {
     match file_format(filename)? {
-        FileFormat::Parquet => {
-            ctx.register_parquet("t", filename, ParquetReadOptions::default())
+        FileFormat::Avro => {
+            ctx.register_avro(table_name, filename, AvroReadOptions::default())
                 .await?
         }
         FileFormat::Csv => {
-            ctx.register_csv("t", filename, CsvReadOptions::default())
+            ctx.register_csv(table_name, filename, CsvReadOptions::default())
                 .await?
         }
         FileFormat::Json => {
-            ctx.register_json("t", filename, NdJsonReadOptions::default())
+            ctx.register_json(table_name, filename, NdJsonReadOptions::default())
+                .await?
+        }
+        FileFormat::Parquet => {
+            ctx.register_parquet(table_name, filename, ParquetReadOptions::default())
                 .await?
         }
     }
-    Ok(ctx.sql("SELECT * FROM t").await?)
+    ctx.table(table_name)
 }
 
 fn file_format(filename: &str) -> Result<FileFormat> {
     match filename.rfind('.') {
         Some(i) => match &filename[i + 1..] {
+            "avro" => Ok(FileFormat::Avro),
             "csv" => Ok(FileFormat::Csv),
             "json" => Ok(FileFormat::Json),
             "parquet" => Ok(FileFormat::Parquet),

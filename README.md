@@ -4,15 +4,44 @@ Simple tools for viewing files and converting between different file formats (cs
 
 ## Prerequisites
 
-- Install Rustup
+- [Install Rust](https://rustup.rs/)
 
-## Install
+## Installation
 
 ``` bash
 cargo install bdt
 ```
 
 ## Examples
+
+### View Parquet Schema
+
+```
+bdt schema /mnt/bigdata/nyctaxi/yellow_tripdata_2022-01.parquet`
++-----------------------+-----------------------------+-------------+
+| column_name           | data_type                   | is_nullable |
++-----------------------+-----------------------------+-------------+
+| VendorID              | Int64                       | YES         |
+| tpep_pickup_datetime  | Timestamp(Nanosecond, None) | YES         |
+| tpep_dropoff_datetime | Timestamp(Nanosecond, None) | YES         |
+| passenger_count       | Float64                     | YES         |
+| trip_distance         | Float64                     | YES         |
+| RatecodeID            | Float64                     | YES         |
+| store_and_fwd_flag    | Utf8                        | YES         |
+| PULocationID          | Int64                       | YES         |
+| DOLocationID          | Int64                       | YES         |
+| payment_type          | Int64                       | YES         |
+| fare_amount           | Float64                     | YES         |
+| extra                 | Float64                     | YES         |
+| mta_tax               | Float64                     | YES         |
+| tip_amount            | Float64                     | YES         |
+| tolls_amount          | Float64                     | YES         |
+| improvement_surcharge | Float64                     | YES         |
+| total_amount          | Float64                     | YES         |
+| congestion_surcharge  | Float64                     | YES         |
+| airport_fee           | Float64                     | YES         |
++-----------------------+-----------------------------+-------------+
+```
 
 ### View Parquet File
 
