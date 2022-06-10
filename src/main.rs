@@ -37,6 +37,12 @@ enum Command {
         #[structopt(parse(from_os_str))]
         output: PathBuf,
     },
+    Query {
+        #[structopt(parse(from_os_str), long)]
+        table: Vec<PathBuf>,
+        #[structopt(long)]
+        sql: String,
+    },
 }
 
 enum FileFormat {
@@ -85,8 +91,33 @@ async fn main() -> Result<()> {
                 FileFormat::Parquet => df.write_csv(output_filename).await?,
             }
         }
+        Command::Query { sql, table } => {
+            for table in &table {
+                let table_name = table
+                    .file_stem()
+                    .unwrap()
+                    .to_str()
+                    .ok_or_else(|| DataFusionError::Internal("Invalid filename".to_string()))?;
+                let table_name = sanitize_table_name(table_name);
+                register_table(&ctx, &table_name, parse_filename(table)?).await?;
+            }
+            let df = ctx.sql(&sql).await?;
+            df.show().await?;
+        }
     }
     Ok(())
+}
+
+fn sanitize_table_name(name: &str) -> String {
+    let mut str = String::new();
+    for ch in name.chars() {
+        if ch.is_ascii_alphanumeric() || ch == '_' {
+            str.push(ch);
+        } else {
+            str.push('_')
+        }
+    }
+    str
 }
 
 fn parse_filename(filename: &Path) -> Result<&str> {
