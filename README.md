@@ -1,6 +1,13 @@
 # Boring Data Tool (bdt) 🤓
 
-Simple tools for viewing files and converting between different file formats (csv, avro, json, parquet, etc). 
+Command-line tool for viewing, querying, and converting between various file formats.
+
+## Features
+
+- Supports CSV, JSON, Parquet, and Avro file formats
+- View file schemas
+- View contents of files
+- Run SQL queries against files
 
 Powered by [DataFusion](https://crates.io/crates/datafusion).
 
@@ -19,7 +26,7 @@ cargo install bdt
 ### View Parquet Schema
 
 ```
-bdt schema /mnt/bigdata/nyctaxi/yellow_tripdata_2022-01.parquet`
+bdt schema /mnt/bigdata/nyctaxi/yellow_tripdata_2022-01.parquet
 +-----------------------+-----------------------------+-------------+
 | column_name           | data_type                   | is_nullable |
 +-----------------------+-----------------------------+-------------+
@@ -64,6 +71,18 @@ $ bdt view /path/to/file.parquet
 | 9         | AAAAAAAAKAAAAAAA | 9      | 0      | 0        | 9        | AM      | third   | night       |             |
 +-----------+------------------+--------+--------+----------+----------+---------+---------+-------------+-------------+
 ```
+
+### Run SQL query against files
+
+```
+$ bdt query --table /mnt/bigdata/nyctaxi/yellow_tripdata_2022-01.parquet \
+  --sql "SELECT COUNT(*) FROM yellow_tripdata_2022_01"   
++-----------------+
+| COUNT(UInt8(1)) |
++-----------------+
+| 2463931         |
++-----------------+
+```    
 
 ### Convert Parquet to newline-delimited JSON
 
