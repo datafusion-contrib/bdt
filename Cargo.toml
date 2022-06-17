@@ -1,6 +1,6 @@
 [package]
 name = "bdt"
-version = "0.2.1"
+version = "0.3.0"
 homepage = "https://github.com/andygrove/bdt"
 repository = "https://github.com/andygrove/bdt"
 authors = ["Andy Grove <andygrove73@gmail.com>"]
@@ -10,6 +10,6 @@ keywords = ["convert", "parquet", "json", "avro", "csv"]
 edition = "2021"
 
 [dependencies]
-datafusion = { version = "8.0", features = ["avro-rs"] }
+datafusion = { version = "9.0", features = ["avro-rs"] }
 structopt = "0.3"
 tokio = "1.19"

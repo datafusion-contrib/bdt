@@ -99,12 +99,15 @@ async fn main() -> Result<()> {
             verbose,
         } => {
             for table in &table {
-                let table_name = table
+                let file_name = table
                     .file_stem()
                     .unwrap()
                     .to_str()
                     .ok_or_else(|| DataFusionError::Internal("Invalid filename".to_string()))?;
-                let table_name = sanitize_table_name(table_name);
+                let table_name = sanitize_table_name(file_name);
+                if verbose {
+                    println!("Registering table '{}' for {}", table_name, table.display());
+                }
                 register_table(&ctx, &table_name, parse_filename(table)?).await?;
             }
             let df = ctx.sql(&sql).await?;
