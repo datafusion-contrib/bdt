@@ -1,6 +1,6 @@
 [package]
 name = "bdt"
-version = "0.2.0"
+version = "0.2.1"
 homepage = "https://github.com/andygrove/bdt"
 repository = "https://github.com/andygrove/bdt"
 authors = ["Andy Grove <andygrove73@gmail.com>"]

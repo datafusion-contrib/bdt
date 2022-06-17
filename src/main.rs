@@ -42,6 +42,8 @@ enum Command {
         table: Vec<PathBuf>,
         #[structopt(long)]
         sql: String,
+        #[structopt(short, long)]
+        verbose: bool,
     },
 }
 
@@ -86,12 +88,16 @@ async fn main() -> Result<()> {
             let df = register_table(&ctx, "t", input_filename).await?;
             match file_format(output_filename)? {
                 FileFormat::Avro => unimplemented!(),
-                FileFormat::Csv => df.write_parquet(output_filename, None).await?,
+                FileFormat::Csv => df.write_csv(output_filename).await?,
                 FileFormat::Json => df.write_json(output_filename).await?,
-                FileFormat::Parquet => df.write_csv(output_filename).await?,
+                FileFormat::Parquet => df.write_parquet(output_filename, None).await?,
             }
         }
-        Command::Query { sql, table } => {
+        Command::Query {
+            sql,
+            table,
+            verbose,
+        } => {
             for table in &table {
                 let table_name = table
                     .file_stem()
@@ -102,6 +108,10 @@ async fn main() -> Result<()> {
                 register_table(&ctx, &table_name, parse_filename(table)?).await?;
             }
             let df = ctx.sql(&sql).await?;
+            if verbose {
+                let explain = df.explain(false, false)?;
+                explain.show().await?;
+            }
             df.show().await?;
         }
     }
