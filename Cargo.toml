@@ -10,6 +10,6 @@ keywords = ["convert", "parquet", "json", "avro", "csv"]
 edition = "2021"
 
 [dependencies]
-datafusion = { version = "9.0", features = ["avro-rs"] }
+datafusion = { version = "12.0", features = ["avro"] }
 structopt = "0.3"
 tokio = "1.19"
