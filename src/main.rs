@@ -48,7 +48,7 @@ enum Command {
         #[structopt(short, long)]
         verbose: bool,
     },
-    ViewParquetStats {
+    ViewParquetMeta {
         #[structopt(parse(from_os_str))]
         input: PathBuf,
     },
@@ -124,14 +124,14 @@ async fn main() -> Result<()> {
             }
             df.show().await?;
         }
-        Command::ViewParquetStats { input } => {
-            view_parquet_stats(input)?;
+        Command::ViewParquetMeta { input } => {
+            view_parquet_meta(input)?;
         }
     }
     Ok(())
 }
 
-fn view_parquet_stats(path: PathBuf) -> Result<()> {
+fn view_parquet_meta(path: PathBuf) -> Result<()> {
     let file = File::open(&path)?;
     let reader = SerializedFileReader::new(file)?;
 
