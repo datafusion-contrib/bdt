@@ -8,6 +8,7 @@ Command-line tool for viewing, querying, and converting between various file for
 - View contents of files
 - Run SQL queries against files
 - Convert between file formats
+- View Parquet file metadata (statistics)
 - Supports CSV, JSON, Parquet, and Avro file formats
 
 ## Prerequisites
@@ -16,7 +17,7 @@ Command-line tool for viewing, querying, and converting between various file for
 
 ## Installation
 
-``` bash
+```bash
 cargo install bdt
 ```
 
@@ -24,7 +25,7 @@ cargo install bdt
 
 ### View File Schema
 
-```
+```bash
 bdt schema /mnt/bigdata/nyctaxi/yellow_tripdata_2022-01.parquet
 +-----------------------+-----------------------------+-------------+
 | column_name           | data_type                   | is_nullable |
@@ -53,7 +54,7 @@ bdt schema /mnt/bigdata/nyctaxi/yellow_tripdata_2022-01.parquet
 
 ### View File Contents
 
-```
+```bash
 $ bdt view /path/to/file.parquet --limit 10
 +-----------+------------------+--------+--------+----------+----------+---------+---------+-------------+-------------+
 | t_time_sk | t_time_id        | t_time | t_hour | t_minute | t_second | t_am_pm | t_shift | t_sub_shift | t_meal_time |
@@ -75,21 +76,46 @@ $ bdt view /path/to/file.parquet --limit 10
 
 Queries can be run against one or more tables. Table names are inferred from file names.
 
-```
+```bash
 $ bdt query --table /mnt/bigdata/nyctaxi/yellow_tripdata_2022-01.parquet \
-  --sql "SELECT COUNT(*) FROM yellow_tripdata_2022_01"   
+  --sql "SELECT COUNT(*) FROM yellow_tripdata_2022_01"
 +-----------------+
 | COUNT(UInt8(1)) |
 +-----------------+
 | 2463931         |
 +-----------------+
-```    
+```
 
 ### Convert Parquet to newline-delimited JSON
 
-```
+```bash
 $ bdt convert /path/to/input.parquet /path/to/output.json
 $ cat /path/to/output.json
 {"d_date_sk":2415022,"d_date_id":"AAAAAAAAOKJNECAA","d_date":"1900-01-02","d_month_seq":0,"d_week_seq":1,"d_quarter_seq":1,"d_year":1900,"d_dow":1,"d_moy":1,"d_dom":2,"d_qoy":1,"d_fy_year":1900,"d_fy_quarter_seq":1,"d_fy_week_seq":1,"d_day_name":"Monday","d_quarter_name":"1900Q1","d_holiday":"N","d_weekend":"N","d_following_holiday":"Y","d_first_dom":2415021,"d_last_dom":2415020,"d_same_day_ly":2414657,"d_same_day_lq":2414930,"d_current_day":"N","d_current_week":"N","d_current_month":"N","d_current_quarter":"N","d_current_year":"N"}
 {"d_date_sk":2415023,"d_date_id":"AAAAAAAAPKJNECAA","d_date":"1900-01-03","d_month_seq":0,"d_week_seq":1,"d_quarter_seq":1,"d_year":1900,"d_dow":2,"d_moy":1,"d_dom":3,"d_qoy":1,"d_fy_year":1900,"d_fy_quarter_seq":1,"d_fy_week_seq":1,"d_day_name":"Tuesday","d_quarter_name":"1900Q1","d_holiday":"N","d_weekend":"N","d_following_holiday":"N","d_first_dom":2415021,"d_last_dom":2415020,"d_same_day_ly":2414658,"d_same_day_lq":2414931,"d_current_day":"N","d_current_week":"N","d_current_month":"N","d_current_quarter":"N","d_current_year":"N"}
+```
+
+### View Parquet File Metadata
+
+```bash
+$ bdt --view-parquet-meta /mnt/bigdata/tpcds/sf100-parquet/store_sales.parquet/part-00000-cff04137-32a6-4e5b-811a-668f5d4b1802-c000.snappy.parquet
+
+File metadata
+=============
+Row Groups: 18
+
+Row Group 0 metadata
+=====================
+Rows: 2088626
+Bytes: 142127299
+
+Column ss_sold_date_sk metadata
+=====================
+Physical Type: INT32
+Distinct Count: None
+Null Count: 94146
+Min: 2450816
+Max: 2452642
+
+...
 ```

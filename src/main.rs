@@ -14,7 +14,7 @@
 
 use datafusion::common::{DataFusionError, Result};
 use datafusion::parquet::file::reader::{FileReader, SerializedFileReader};
-use datafusion::parquet::file::statistics::{Statistics, ValueStatistics};
+use datafusion::parquet::file::statistics::Statistics;
 use datafusion::prelude::*;
 use std::fs::File;
 use std::path::{Path, PathBuf};
