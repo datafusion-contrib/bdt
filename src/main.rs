@@ -13,7 +13,10 @@
 // limitations under the License.
 
 use datafusion::common::{DataFusionError, Result};
+use datafusion::parquet::file::reader::{FileReader, SerializedFileReader};
+use datafusion::parquet::file::statistics::{Statistics, ValueStatistics};
 use datafusion::prelude::*;
+use std::fs::File;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use structopt::StructOpt;
@@ -44,6 +47,10 @@ enum Command {
         sql: String,
         #[structopt(short, long)]
         verbose: bool,
+    },
+    ViewParquetStats {
+        #[structopt(parse(from_os_str))]
+        input: PathBuf,
     },
 }
 
@@ -117,7 +124,74 @@ async fn main() -> Result<()> {
             }
             df.show().await?;
         }
+        Command::ViewParquetStats { input } => {
+            view_parquet_stats(input)?;
+        }
     }
+    Ok(())
+}
+
+fn view_parquet_stats(path: PathBuf) -> Result<()> {
+    let file = File::open(&path)?;
+    let reader = SerializedFileReader::new(file)?;
+
+    let parquet_metadata = reader.metadata();
+    println!("File metadata");
+    println!("=============");
+    println!("Row Groups: {}", parquet_metadata.num_row_groups());
+
+    for i in 0..parquet_metadata.num_row_groups() {
+        let row_group_reader = reader.get_row_group(i)?;
+        println!("\nRow Group {} metadata", i);
+        println!("=====================");
+        let md = row_group_reader.metadata();
+        println!("Rows: {}", md.num_rows());
+        println!("Bytes: {}", md.total_byte_size());
+
+        for column in md.columns() {
+            println!("\nColumn {} metadata", column.column_descr().name());
+            println!("=====================");
+            if let Some(stats) = column.statistics() {
+                println!("Physical Type: {:?}", stats.physical_type());
+                println!("Distinct Count: {:?}", stats.distinct_count());
+                println!("Null Count: {}", stats.null_count());
+                if stats.has_min_max_set() {
+                    match &stats {
+                        Statistics::Boolean(v) => {
+                            println!("Min: {}", v.min());
+                            println!("Max: {}", v.max());
+                        }
+                        Statistics::Int32(v) => {
+                            println!("Min: {}", v.min());
+                            println!("Max: {}", v.max());
+                        }
+                        Statistics::Int64(v) => {
+                            println!("Min: {}", v.min());
+                            println!("Max: {}", v.max());
+                        }
+                        Statistics::Float(v) => {
+                            println!("Min: {}", v.min());
+                            println!("Max: {}", v.max());
+                        }
+                        Statistics::Double(v) => {
+                            println!("Min: {}", v.min());
+                            println!("Max: {}", v.max());
+                        }
+                        _ => {
+                            println!("Min: UNSUPPORTED TYPE");
+                            println!("Max: UNSUPPORTED TYPE");
+                        }
+                    }
+                } else {
+                    println!("Min: N/A");
+                    println!("Max: N/A");
+                }
+            } else {
+                println!("No statistics available");
+            }
+        }
+    }
+
     Ok(())
 }
 
