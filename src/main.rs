@@ -4,7 +4,7 @@
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
 //
-// http://www.apache.org/licenses/LICENSE-2.0
+// http://wwwApache.org/licenses/LICENSE-2.0
 //
 // Unless required by applicable law or agreed to in writing, software
 // distributed under the License is distributed on an "AS IS" BASIS,
@@ -153,36 +153,60 @@ fn view_parquet_meta(path: PathBuf) -> Result<()> {
             println!("=====================");
             if let Some(stats) = column.statistics() {
                 println!("Physical Type: {:?}", stats.physical_type());
-                println!("Distinct Count: {:?}", stats.distinct_count());
                 println!("Null Count: {}", stats.null_count());
+                if let Some(dc) = stats.distinct_count() {
+                    println!("Distinct Count: {}", dc);
+                }
                 if stats.has_min_max_set() {
                     match &stats {
                         Statistics::Boolean(v) => {
+                            if stats.distinct_count().is_none() {
+                                let dc = if v.min() == v.max() { 1 } else { 2 };
+                                println!("Distinct Count: {}", dc);
+                            }
                             println!("Min: {}", v.min());
                             println!("Max: {}", v.max());
                         }
                         Statistics::Int32(v) => {
+                            if stats.distinct_count().is_none() && md.num_rows() > 0 {
+                                let range = v.max() - v.min();
+                                let dc = range.min(md.num_rows() as i32);
+                                println!("Distinct Count (Estimated): {}", dc);
+                            }
                             println!("Min: {}", v.min());
                             println!("Max: {}", v.max());
                         }
                         Statistics::Int64(v) => {
+                            if stats.distinct_count().is_none() && md.num_rows() > 0 {
+                                let range = v.max() - v.min();
+                                let dc = range.min(md.num_rows());
+                                println!("Distinct Count (Estimated): {}", dc);
+                            }
                             println!("Min: {}", v.min());
                             println!("Max: {}", v.max());
                         }
                         Statistics::Float(v) => {
+                            if stats.distinct_count().is_none() {
+                                println!("Distinct Count: N/A");
+                            }
                             println!("Min: {}", v.min());
                             println!("Max: {}", v.max());
                         }
                         Statistics::Double(v) => {
+                            if stats.distinct_count().is_none() {
+                                println!("Distinct Count: N/A");
+                            }
                             println!("Min: {}", v.min());
                             println!("Max: {}", v.max());
                         }
                         _ => {
+                            println!("Distinct Count: N/A");
                             println!("Min: UNSUPPORTED TYPE");
                             println!("Max: UNSUPPORTED TYPE");
                         }
                     }
                 } else {
+                    println!("Distinct Count: N/A");
                     println!("Min: N/A");
                     println!("Max: N/A");
                 }
