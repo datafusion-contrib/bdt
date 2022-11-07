@@ -10,6 +10,7 @@ keywords = ["convert", "parquet", "json", "avro", "csv"]
 edition = "2021"
 
 [dependencies]
+comfy-table = "6.1.2"
 datafusion = { version = "13.0", features = ["avro"] }
 structopt = "0.3"
 tokio = "1.19"
