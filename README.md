@@ -100,22 +100,28 @@ $ cat /path/to/output.json
 ```bash
 $ bdt --view-parquet-meta /mnt/bigdata/tpcds/sf100-parquet/store_sales.parquet/part-00000-cff04137-32a6-4e5b-811a-668f5d4b1802-c000.snappy.parquet
 
-File metadata
-=============
-Row Groups: 18
++------------+----------------------------------------------------------------------------+
+| Key        | Value                                                                      |
++------------+----------------------------------------------------------------------------+
+| Version    | 1                                                                          |
+| Created By | parquet-mr version 1.10.1 (build a89df8f9932b6ef6633d06069e50c9b7970bebd1) |
+| Rows       | 40016                                                                      |
+| Row Groups | 1                                                                          |
++------------+----------------------------------------------------------------------------+
 
-Row Group 0 metadata
-=====================
-Rows: 2088626
-Bytes: 142127299
+Row Group 0 of 1 contains 40016 rows and has 190952 bytes:
 
-Column ss_sold_date_sk metadata
-=====================
-Physical Type: INT32
-Distinct Count: None
-Null Count: 94146
-Min: 2450816
-Max: 2452642
-
-...
++-----------------------+--------------+---------------+-----------------+-------+-----------------------------------------------------+------------------------------------+
+| Column Name           | Logical Type | Physical Type | Distinct Values | Nulls | Min                                                 | Max                                |
++-----------------------+--------------+---------------+-----------------+-------+-----------------------------------------------------+------------------------------------+
+| cd_demo_sk            | N/A          | INT32         | N/A             | 0     | 1520641                                             | 1560656                            |
+| cd_gender             | N/A          | BYTE_ARRAY    | N/A             | 0     | [70]                                                | [77]                               |
+| cd_marital_status     | N/A          | BYTE_ARRAY    | N/A             | 0     | [68]                                                | [87]                               |
+| cd_education_status   | N/A          | BYTE_ARRAY    | N/A             | 0     | [50, 32, 121, 114, 32, 68, 101, 103, 114, 101, 101] | [85, 110, 107, 110, 111, 119, 110] |
+| cd_purchase_estimate  | N/A          | INT32         | N/A             | 0     | 500                                                 | 10000                              |
+| cd_credit_rating      | N/A          | BYTE_ARRAY    | N/A             | 0     | [71, 111, 111, 100]                                 | [85, 110, 107, 110, 111, 119, 110] |
+| cd_dep_count          | N/A          | INT32         | N/A             | 0     | 0                                                   | 6                                  |
+| cd_dep_employed_count | N/A          | INT32         | N/A             | 0     | 3                                                   | 4                                  |
+| cd_dep_college_count  | N/A          | INT32         | N/A             | 0     | 5                                                   | 5                                  |
++-----------------------+--------------+---------------+-----------------+-------+-----------------------------------------------------+------------------------------------+
 ```
