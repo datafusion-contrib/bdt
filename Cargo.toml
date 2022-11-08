@@ -1,6 +1,6 @@
 [package]
 name = "bdt"
-version = "0.5.0"
+version = "0.6.0"
 homepage = "https://github.com/andygrove/bdt"
 repository = "https://github.com/andygrove/bdt"
 authors = ["Andy Grove <andygrove73@gmail.com>"]
@@ -11,6 +11,6 @@ edition = "2021"
 
 [dependencies]
 comfy-table = "6.1.2"
-datafusion = { version = "13.0", features = ["avro"] }
+datafusion = { version = "14.0", features = ["avro"] }
 structopt = "0.3"
 tokio = "1.19"
