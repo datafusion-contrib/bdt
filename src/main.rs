@@ -42,6 +42,10 @@ enum Command {
         #[structopt(parse(from_os_str))]
         output: PathBuf,
     },
+    Count {
+        #[structopt(parse(from_os_str), long)]
+        table: PathBuf,
+    },
     Query {
         #[structopt(parse(from_os_str), long)]
         table: Vec<PathBuf>,
@@ -124,6 +128,13 @@ async fn main() -> Result<()> {
                 let explain = df.explain(false, false)?;
                 explain.show().await?;
             }
+            df.show().await?;
+        }
+        Command::Count { table } => {
+            let table_name = "__t1__";
+            register_table(&ctx, &table_name, parse_filename(&table)?).await?;
+            let sql = format!("SELECT COUNT(*) FROM {}", table_name);
+            let df = ctx.sql(&sql).await?;
             df.show().await?;
         }
         Command::ViewParquetMeta { input } => {
