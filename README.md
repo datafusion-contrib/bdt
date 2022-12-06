@@ -21,7 +21,29 @@ Command-line tool for viewing, querying, and converting between various file for
 cargo install bdt
 ```
 
-## Example Usage
+## Usage
+
+```bash
+Boring Data Tool
+
+USAGE:
+    bdt <SUBCOMMAND>
+
+FLAGS:
+    -h, --help       Prints help information
+    -V, --version    Prints version information
+
+SUBCOMMANDS:
+    convert              Convert a file to a different format
+    count                Show the row count of the file
+    help                 Prints this message or the help of the given subcommand(s)
+    query                Run a SQL query against one or more files
+    schema               View schema of a file
+    view                 View contents of a file
+    view-parquet-meta    View Parquet metadata
+```
+
+## Examples
 
 ### View File Schema
 

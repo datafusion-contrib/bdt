@@ -26,26 +26,31 @@ use structopt::StructOpt;
 #[derive(Debug, StructOpt)]
 #[structopt(name = "bdt", about = "Boring Data Tool")]
 enum Command {
+    /// View contents of a file
     View {
         #[structopt(parse(from_os_str))]
         filename: PathBuf,
         #[structopt(short, long)]
         limit: Option<usize>,
     },
+    /// View schema of a file
     Schema {
         #[structopt(parse(from_os_str))]
         filename: PathBuf,
     },
+    /// Convert a file to a different format
     Convert {
         #[structopt(parse(from_os_str))]
         input: PathBuf,
         #[structopt(parse(from_os_str))]
         output: PathBuf,
     },
+    /// Show the row count of the file
     Count {
         #[structopt(parse(from_os_str), long)]
         table: PathBuf,
     },
+    /// Run a SQL query against one or more files
     Query {
         #[structopt(parse(from_os_str), long)]
         table: Vec<PathBuf>,
@@ -54,6 +59,7 @@ enum Command {
         #[structopt(short, long)]
         verbose: bool,
     },
+    /// View Parquet metadata
     ViewParquetMeta {
         #[structopt(parse(from_os_str))]
         input: PathBuf,
