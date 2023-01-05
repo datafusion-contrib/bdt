@@ -13,7 +13,10 @@
 // limitations under the License.
 
 use comfy_table::{Cell, Table};
-use datafusion::common::{DataFusionError, Result};
+use datafusion::arrow::array;
+use datafusion::arrow::datatypes::DataType;
+use datafusion::arrow::record_batch::RecordBatch;
+use datafusion::common::{DataFusionError, Result, ScalarValue};
 use datafusion::parquet::basic::LogicalType;
 use datafusion::parquet::file::reader::{FileReader, SerializedFileReader};
 use datafusion::parquet::file::statistics::Statistics;
@@ -63,6 +66,18 @@ enum Command {
     ViewParquetMeta {
         #[structopt(parse(from_os_str))]
         input: PathBuf,
+    },
+    /// Compare the contents of two files
+    Compare {
+        #[structopt(parse(from_os_str))]
+        input1: PathBuf,
+        #[structopt(parse(from_os_str))]
+        input2: PathBuf,
+        #[structopt(short, long)]
+        epsilon: Option<f64>,
+        /// Assume there is a header row by default (only applies to CSV)
+        #[structopt(short, long)]
+        no_header_row: bool,
     },
 }
 
@@ -138,13 +153,21 @@ async fn main() -> Result<()> {
         }
         Command::Count { table } => {
             let table_name = "__t1__";
-            register_table(&ctx, &table_name, parse_filename(&table)?).await?;
+            register_table(&ctx, table_name, parse_filename(&table)?).await?;
             let sql = format!("SELECT COUNT(*) FROM {}", table_name);
             let df = ctx.sql(&sql).await?;
             df.show().await?;
         }
         Command::ViewParquetMeta { input } => {
             view_parquet_meta(input)?;
+        }
+        Command::Compare {
+            input1,
+            input2,
+            epsilon,
+            no_header_row,
+        } => {
+            compare_files(input1, input2, !no_header_row, epsilon).await?;
         }
     }
     Ok(())
@@ -201,7 +224,7 @@ fn view_parquet_meta(path: PathBuf) -> Result<()> {
             "Max",
         ]
         .iter()
-        .map(|str| Cell::new(str))
+        .map(Cell::new)
         .collect();
         table.set_header(header);
 
@@ -251,8 +274,8 @@ fn view_parquet_meta(path: PathBuf) -> Result<()> {
                                     Some(LogicalType::String) => {
                                         let min = v.min().as_utf8().unwrap();
                                         let max = v.min().as_utf8().unwrap();
-                                        row.push(format!("{}", min));
-                                        row.push(format!("{}", max));
+                                        row.push(min.to_string());
+                                        row.push(max.to_string());
                                     }
                                     _ => {
                                         row.push(format!("{}", v.min()));
@@ -344,5 +367,203 @@ fn file_format(filename: &str) -> Result<FileFormat> {
             "Could not determine file extension for '{}'",
             filename
         ))),
+    }
+}
+
+async fn compare_files(
+    path1: PathBuf,
+    path2: PathBuf,
+    has_header: bool,
+    epsilon: Option<f64>,
+) -> Result<bool> {
+    let ctx = SessionContext::new();
+    let batches1 = read_file(&ctx, path1.to_str().unwrap(), has_header).await?;
+    let batches2 = read_file(&ctx, path2.to_str().unwrap(), has_header).await?;
+    let count1: usize = batches1.iter().map(|b| b.num_rows()).sum();
+    let count2: usize = batches2.iter().map(|b| b.num_rows()).sum();
+    if count1 == count2 {
+        let it1 = RowIter::new(batches1);
+        let it2 = RowIter::new(batches2);
+        for (i, (a, b)) in it1.zip(it2).enumerate() {
+            if a.len() == b.len() {
+                for (j, (v1, v2)) in a.iter().zip(b.iter()).enumerate() {
+                    if v1 != v2 {
+                        let ok = if let Some(epsilon) = epsilon {
+                            match (v1, v2) {
+                                (
+                                    ScalarValue::Float32(Some(ll)),
+                                    ScalarValue::Float32(Some(rr)),
+                                ) => ((ll - rr) as f64) < epsilon,
+                                (
+                                    ScalarValue::Float64(Some(ll)),
+                                    ScalarValue::Float64(Some(rr)),
+                                ) => (ll - rr) < epsilon,
+                                _ => false,
+                            }
+                        } else {
+                            false
+                        };
+                        if !ok {
+                            println!(
+                                "data does not match at row {} column {}: {:?} != {:?}",
+                                i, j, v1, v2
+                            );
+                            return Ok(false);
+                        }
+                    }
+                }
+            } else {
+                println!(
+                    "row lengths do not match at index {}: {} != {}",
+                    i,
+                    a.len(),
+                    b.len()
+                );
+                return Ok(false);
+            }
+        }
+    } else {
+        println!("row counts do not match: {} != {}", count1, count2);
+        return Ok(false);
+    }
+    Ok(true)
+}
+
+async fn read_file(
+    ctx: &SessionContext,
+    filename: &str,
+    has_header: bool,
+) -> Result<Vec<RecordBatch>> {
+    let df = if filename.ends_with(".csv") {
+        let read_options = CsvReadOptions::new().has_header(has_header);
+        ctx.read_csv(filename, read_options).await?
+    } else if filename.ends_with(".parquet") {
+        ctx.read_parquet(filename, ParquetReadOptions::default())
+            .await?
+    } else {
+        todo!()
+    };
+    df.collect().await
+}
+
+struct RowIter {
+    batches: Vec<RecordBatch>,
+    current_batch: usize,
+    current_batch_offset: usize,
+}
+
+impl RowIter {
+    fn new(batches: Vec<RecordBatch>) -> Self {
+        Self {
+            batches,
+            current_batch: 0,
+            current_batch_offset: 0,
+        }
+    }
+}
+
+impl Iterator for RowIter {
+    type Item = Vec<ScalarValue>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        while self.current_batch < self.batches.len() {
+            let b = &self.batches[self.current_batch];
+            if self.current_batch_offset < b.num_rows() {
+                let mut row: Vec<ScalarValue> = Vec::with_capacity(b.num_columns());
+                let row_index = self.current_batch_offset;
+                self.current_batch_offset += 1;
+                for col_index in 0..b.num_columns() {
+                    let array = b.column(col_index);
+                    if array.is_null(row_index) {
+                        row.push(ScalarValue::Null)
+                    } else {
+                        match array.data_type() {
+                            DataType::Utf8 => {
+                                let array =
+                                    array.as_any().downcast_ref::<array::StringArray>().unwrap();
+                                row.push(ScalarValue::Utf8(Some(
+                                    array.value(row_index).to_string(),
+                                )));
+                            }
+                            // TODO introduce macros to make this concise
+                            DataType::Int8 => {
+                                let array =
+                                    array.as_any().downcast_ref::<array::Int8Array>().unwrap();
+                                row.push(ScalarValue::Int8(Some(array.value(row_index))));
+                            }
+                            DataType::Int16 => {
+                                let array =
+                                    array.as_any().downcast_ref::<array::Int16Array>().unwrap();
+                                row.push(ScalarValue::Int16(Some(array.value(row_index))));
+                            }
+                            DataType::Int32 => {
+                                let array =
+                                    array.as_any().downcast_ref::<array::Int32Array>().unwrap();
+                                row.push(ScalarValue::Int32(Some(array.value(row_index))));
+                            }
+                            DataType::Int64 => {
+                                let array =
+                                    array.as_any().downcast_ref::<array::Int64Array>().unwrap();
+                                row.push(ScalarValue::Int64(Some(array.value(row_index))));
+                            }
+                            DataType::UInt8 => {
+                                let array =
+                                    array.as_any().downcast_ref::<array::UInt8Array>().unwrap();
+                                row.push(ScalarValue::UInt8(Some(array.value(row_index))));
+                            }
+                            DataType::UInt16 => {
+                                let array =
+                                    array.as_any().downcast_ref::<array::UInt16Array>().unwrap();
+                                row.push(ScalarValue::UInt16(Some(array.value(row_index))));
+                            }
+                            DataType::UInt32 => {
+                                let array =
+                                    array.as_any().downcast_ref::<array::UInt32Array>().unwrap();
+                                row.push(ScalarValue::UInt32(Some(array.value(row_index))));
+                            }
+                            DataType::UInt64 => {
+                                let array =
+                                    array.as_any().downcast_ref::<array::UInt64Array>().unwrap();
+                                row.push(ScalarValue::UInt64(Some(array.value(row_index))));
+                            }
+                            DataType::Float32 => {
+                                let array = array
+                                    .as_any()
+                                    .downcast_ref::<array::Float32Array>()
+                                    .unwrap();
+                                row.push(ScalarValue::Float32(Some(array.value(row_index))));
+                            }
+                            DataType::Float64 => {
+                                let array = array
+                                    .as_any()
+                                    .downcast_ref::<array::Float64Array>()
+                                    .unwrap();
+                                row.push(ScalarValue::Float64(Some(array.value(row_index))));
+                            }
+                            DataType::Date32 => {
+                                let array =
+                                    array.as_any().downcast_ref::<array::Date32Array>().unwrap();
+                                row.push(ScalarValue::Date32(Some(array.value(row_index))));
+                            }
+                            DataType::Date64 => {
+                                let array =
+                                    array.as_any().downcast_ref::<array::Date64Array>().unwrap();
+                                row.push(ScalarValue::Date64(Some(array.value(row_index))));
+                            }
+                            other => {
+                                println!("unsupported type: {}", other);
+                                todo!("unsupported data type")
+                            }
+                        }
+                    }
+                }
+                return Some(row);
+            } else {
+                // move onto next batch
+                self.current_batch += 1;
+                self.current_batch_offset = 0;
+            }
+        }
+        None
     }
 }
