@@ -1,6 +1,9 @@
 # Boring Data Tool (bdt) 🤓
 
-Command-line tool for viewing, querying, and converting between various file formats. Powered by [DataFusion](https://crates.io/crates/datafusion).
+Command-line tool for viewing, querying, converting, and comparing files in popular data formats (CSV, Parquet, JSON,
+and Avro).
+
+Powered by [Apache Arrow](https://arrow.apache.org/) and [DataFusion](https://crates.io/crates/datafusion).
 
 ## Features
 
