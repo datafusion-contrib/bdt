@@ -75,6 +75,9 @@ enum Command {
         input2: PathBuf,
         #[structopt(short, long)]
         epsilon: Option<f64>,
+        /// Assume there is a header row by default (only applies to CSV)
+        #[structopt(short, long)]
+        no_header_row: bool,
     },
 }
 
@@ -150,7 +153,7 @@ async fn main() -> Result<()> {
         }
         Command::Count { table } => {
             let table_name = "__t1__";
-            register_table(&ctx, &table_name, parse_filename(&table)?).await?;
+            register_table(&ctx, table_name, parse_filename(&table)?).await?;
             let sql = format!("SELECT COUNT(*) FROM {}", table_name);
             let df = ctx.sql(&sql).await?;
             df.show().await?;
@@ -162,8 +165,9 @@ async fn main() -> Result<()> {
             input1,
             input2,
             epsilon,
+            no_header_row,
         } => {
-            compare_files(input1, input2, epsilon).await?;
+            compare_files(input1, input2, !no_header_row, epsilon).await?;
         }
     }
     Ok(())
@@ -220,7 +224,7 @@ fn view_parquet_meta(path: PathBuf) -> Result<()> {
             "Max",
         ]
         .iter()
-        .map(|str| Cell::new(str))
+        .map(Cell::new)
         .collect();
         table.set_header(header);
 
@@ -270,8 +274,8 @@ fn view_parquet_meta(path: PathBuf) -> Result<()> {
                                     Some(LogicalType::String) => {
                                         let min = v.min().as_utf8().unwrap();
                                         let max = v.min().as_utf8().unwrap();
-                                        row.push(format!("{}", min));
-                                        row.push(format!("{}", max));
+                                        row.push(min.to_string());
+                                        row.push(max.to_string());
                                     }
                                     _ => {
                                         row.push(format!("{}", v.min()));
@@ -366,20 +370,15 @@ fn file_format(filename: &str) -> Result<FileFormat> {
     }
 }
 
-async fn compare_files(path1: PathBuf, path2: PathBuf, epsilon: Option<f64>) -> Result<bool> {
+async fn compare_files(
+    path1: PathBuf,
+    path2: PathBuf,
+    has_header: bool,
+    epsilon: Option<f64>,
+) -> Result<bool> {
     let ctx = SessionContext::new();
-    // TODO assumes csv for now
-    let df = ctx
-        .read_csv(path1.to_str().unwrap(), CsvReadOptions::default())
-        .await?;
-    // TODO reads results into memory .. could stream this instead
-    let batches1 = df.collect().await?;
-
-    let df = ctx
-        .read_csv(path2.to_str().unwrap(), CsvReadOptions::default())
-        .await?;
-    let batches2 = df.collect().await?;
-
+    let batches1 = read_file(&ctx, path1.to_str().unwrap(), has_header).await?;
+    let batches2 = read_file(&ctx, path2.to_str().unwrap(), has_header).await?;
     let count1: usize = batches1.iter().map(|b| b.num_rows()).sum();
     let count2: usize = batches2.iter().map(|b| b.num_rows()).sum();
     if count1 == count2 {
@@ -398,7 +397,7 @@ async fn compare_files(path1: PathBuf, path2: PathBuf, epsilon: Option<f64>) -> 
                                 (
                                     ScalarValue::Float64(Some(ll)),
                                     ScalarValue::Float64(Some(rr)),
-                                ) => ll - rr < epsilon,
+                                ) => (ll - rr) < epsilon,
                                 _ => false,
                             }
                         } else {
@@ -428,6 +427,23 @@ async fn compare_files(path1: PathBuf, path2: PathBuf, epsilon: Option<f64>) -> 
         return Ok(false);
     }
     Ok(true)
+}
+
+async fn read_file(
+    ctx: &SessionContext,
+    filename: &str,
+    has_header: bool,
+) -> Result<Vec<RecordBatch>> {
+    let df = if filename.ends_with(".csv") {
+        let read_options = CsvReadOptions::new().has_header(has_header);
+        ctx.read_csv(filename, read_options).await?
+    } else if filename.ends_with(".parquet") {
+        ctx.read_parquet(filename, ParquetReadOptions::default())
+            .await?
+    } else {
+        todo!()
+    };
+    df.collect().await
 }
 
 struct RowIter {
