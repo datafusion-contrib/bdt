@@ -1,7 +1,34 @@
+use crate::{Error, FileFormat};
 use datafusion::arrow::array;
 use datafusion::arrow::datatypes::DataType;
 use datafusion::arrow::record_batch::RecordBatch;
 use datafusion::common::ScalarValue;
+use std::path::Path;
+
+pub fn file_format(filename: &str) -> Result<FileFormat, Error> {
+    match filename.rfind('.') {
+        Some(i) => match &filename[i + 1..] {
+            "avro" => Ok(FileFormat::Avro),
+            "csv" => Ok(FileFormat::Csv),
+            "json" => Ok(FileFormat::Json),
+            "parquet" => Ok(FileFormat::Parquet),
+            other => Err(Error::General(format!(
+                "unsupported file extension '{}'",
+                other
+            ))),
+        },
+        _ => Err(Error::General(format!(
+            "Could not determine file extension for '{}'",
+            filename
+        ))),
+    }
+}
+
+pub fn parse_filename(filename: &Path) -> Result<&str, Error> {
+    filename
+        .to_str()
+        .ok_or_else(|| Error::General("Invalid filename".to_string()))
+}
 
 pub struct RowIter {
     batches: Vec<RecordBatch>,

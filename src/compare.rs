@@ -1,15 +1,18 @@
 use crate::utils::RowIter;
+use crate::Error;
 use datafusion::arrow::record_batch::RecordBatch;
-use datafusion::common::{Result, ScalarValue};
+use datafusion::common::ScalarValue;
 use datafusion::prelude::*;
+use std::fmt::{Display, Formatter};
 use std::path::PathBuf;
+use std::result::Result;
 
 pub async fn compare_files(
     path1: PathBuf,
     path2: PathBuf,
     has_header: bool,
     epsilon: Option<f64>,
-) -> Result<bool> {
+) -> Result<ComparisonResult, Error> {
     let ctx = SessionContext::new();
     let batches1 = read_file(&ctx, path1.to_str().unwrap(), has_header).await?;
     let batches2 = read_file(&ctx, path2.to_str().unwrap(), has_header).await?;
@@ -38,48 +41,106 @@ pub async fn compare_files(
                             false
                         };
                         if !ok {
-                            println!(
+                            let message = format!(
                                 "data does not match at row {} column {}: {:?} != {:?}",
                                 i, j, v1, v2
                             );
-                            println!(" left: {:?}", a);
-                            println!("right: {:?}", b);
-                            return Ok(false);
+                            return Ok(ComparisonResult::row_diff(a, b, message));
                         }
                     }
                 }
             } else {
-                println!(
+                let message = format!(
                     "row lengths do not match at index {}: {} != {}",
                     i,
                     a.len(),
                     b.len()
                 );
-                println!(" left: {:?}", a);
-                println!("right: {:?}", b);
-                return Ok(false);
+                return Ok(ComparisonResult::row_diff(a, b, message));
             }
         }
     } else {
-        println!("row counts do not match: {} != {}", count1, count2);
-        return Ok(false);
+        let message = format!("row counts do not match: {} != {}", count1, count2);
+        return Ok(ComparisonResult::FileDiff(message));
     }
-    Ok(true)
+    Ok(ComparisonResult::Ok)
+}
+
+pub enum ComparisonResult {
+    Ok,
+    FileDiff(String),
+    RowDiff {
+        left: Vec<ScalarValue>,
+        right: Vec<ScalarValue>,
+        message: String,
+    },
+}
+
+impl ComparisonResult {
+    fn row_diff(left: Vec<ScalarValue>, right: Vec<ScalarValue>, message: String) -> Self {
+        Self::RowDiff {
+            left,
+            right,
+            message,
+        }
+    }
+}
+
+impl Display for ComparisonResult {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::RowDiff {
+                left,
+                right,
+                message,
+            } => {
+                write!(
+                    f,
+                    "Row mismatch: {}\n left: {:?}\nright: {:?}",
+                    message, left, right
+                )
+            }
+            Self::FileDiff(message) => {
+                write!(f, "Files are different: {}", message)
+            }
+            _ => {
+                write!(f, "Files match")
+            }
+        }
+    }
 }
 
 async fn read_file(
     ctx: &SessionContext,
     filename: &str,
     has_header: bool,
-) -> Result<Vec<RecordBatch>> {
-    let df = if filename.ends_with(".csv") {
-        let read_options = CsvReadOptions::new().has_header(has_header);
-        ctx.read_csv(filename, read_options).await?
-    } else if filename.ends_with(".parquet") {
-        ctx.read_parquet(filename, ParquetReadOptions::default())
-            .await?
+) -> Result<Vec<RecordBatch>, Error> {
+    if let Some(i) = filename.rfind('.') {
+        match &filename[i + 1..] {
+            "csv" => {
+                let read_options = CsvReadOptions::new().has_header(has_header);
+                ctx.read_csv(filename, read_options)
+                    .await
+                    .map_err(Error::from)?
+                    .collect()
+                    .await
+                    .map_err(Error::from)
+            }
+            "parquet" => ctx
+                .read_parquet(filename, ParquetReadOptions::default())
+                .await
+                .map_err(Error::from)?
+                .collect()
+                .await
+                .map_err(Error::from),
+            other => Err(Error::General(format!(
+                "Unsupported file extension: {}",
+                other
+            ))),
+        }
     } else {
-        todo!()
-    };
-    df.collect().await
+        Err(Error::General(format!(
+            "Could not determine file extension"
+        )))
+    }
 }

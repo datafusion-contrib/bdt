@@ -12,15 +12,17 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use bdt::compare;
+use bdt::compare::ComparisonResult;
+use bdt::utils::{file_format, parse_filename};
+use bdt::{compare, Error, FileFormat};
 use comfy_table::{Cell, Table};
-use datafusion::common::{DataFusionError, Result};
+use datafusion::common::DataFusionError;
 use datafusion::parquet::basic::LogicalType;
 use datafusion::parquet::file::reader::{FileReader, SerializedFileReader};
 use datafusion::parquet::file::statistics::Statistics;
 use datafusion::prelude::*;
 use std::fs::File;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use std::sync::Arc;
 use structopt::StructOpt;
 
@@ -79,15 +81,8 @@ enum Command {
     },
 }
 
-enum FileFormat {
-    Avro,
-    Csv,
-    Json,
-    Parquet,
-}
-
 #[tokio::main]
-async fn main() -> Result<()> {
+async fn main() -> Result<(), Error> {
     let cmd = Command::from_args();
     let config = SessionConfig::new().with_information_schema(true);
     let ctx = SessionContext::with_config(config);
@@ -164,18 +159,22 @@ async fn main() -> Result<()> {
             input2,
             epsilon,
             no_header_row,
-        } => {
-            if !compare::compare_files(input1, input2, !no_header_row, epsilon).await? {
+        } => match compare::compare_files(input1, input2, !no_header_row, epsilon).await? {
+            ComparisonResult::Ok => {
+                println!("Files match");
+            }
+            diff => {
+                println!("{}", diff);
                 std::process::exit(-1);
             }
-        }
+        },
     }
     Ok(())
 }
 
-fn view_parquet_meta(path: PathBuf) -> Result<()> {
-    let file = File::open(&path)?;
-    let reader = SerializedFileReader::new(file)?;
+fn view_parquet_meta(path: PathBuf) -> Result<(), Error> {
+    let file = File::open(&path).map_err(Error::from)?;
+    let reader = SerializedFileReader::new(file).map_err(Error::from)?;
 
     let parquet_metadata = reader.metadata();
 
@@ -319,17 +318,11 @@ fn sanitize_table_name(name: &str) -> String {
     str
 }
 
-fn parse_filename(filename: &Path) -> Result<&str> {
-    filename
-        .to_str()
-        .ok_or_else(|| DataFusionError::Internal("Invalid filename".to_string()))
-}
-
 async fn register_table(
     ctx: &SessionContext,
     table_name: &str,
     filename: &str,
-) -> Result<Arc<DataFrame>> {
+) -> Result<Arc<DataFrame>, Error> {
     match file_format(filename)? {
         FileFormat::Avro => {
             ctx.register_avro(table_name, filename, AvroReadOptions::default())
@@ -348,24 +341,5 @@ async fn register_table(
                 .await?
         }
     }
-    ctx.table(table_name)
-}
-
-fn file_format(filename: &str) -> Result<FileFormat> {
-    match filename.rfind('.') {
-        Some(i) => match &filename[i + 1..] {
-            "avro" => Ok(FileFormat::Avro),
-            "csv" => Ok(FileFormat::Csv),
-            "json" => Ok(FileFormat::Json),
-            "parquet" => Ok(FileFormat::Parquet),
-            other => Err(DataFusionError::Internal(format!(
-                "unsupported file extension '{}'",
-                other
-            ))),
-        },
-        _ => Err(DataFusionError::Internal(format!(
-            "Could not determine file extension for '{}'",
-            filename
-        ))),
-    }
+    ctx.table(table_name).map_err(Error::from)
 }
