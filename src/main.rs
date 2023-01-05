@@ -13,7 +13,10 @@
 // limitations under the License.
 
 use comfy_table::{Cell, Table};
-use datafusion::common::{DataFusionError, Result};
+use datafusion::arrow::array;
+use datafusion::arrow::datatypes::DataType;
+use datafusion::arrow::record_batch::RecordBatch;
+use datafusion::common::{DataFusionError, Result, ScalarValue};
 use datafusion::parquet::basic::LogicalType;
 use datafusion::parquet::file::reader::{FileReader, SerializedFileReader};
 use datafusion::parquet::file::statistics::Statistics;
@@ -63,6 +66,13 @@ enum Command {
     ViewParquetMeta {
         #[structopt(parse(from_os_str))]
         input: PathBuf,
+    },
+    /// Compare the contents of two files
+    Compare {
+        #[structopt(parse(from_os_str))]
+        input1: PathBuf,
+        #[structopt(parse(from_os_str))]
+        input2: PathBuf,
     },
 }
 
@@ -145,6 +155,9 @@ async fn main() -> Result<()> {
         }
         Command::ViewParquetMeta { input } => {
             view_parquet_meta(input)?;
+        }
+        Command::Compare { input1, input2 } => {
+            compare_files(input1, input2).await?;
         }
     }
     Ok(())
@@ -344,5 +357,161 @@ fn file_format(filename: &str) -> Result<FileFormat> {
             "Could not determine file extension for '{}'",
             filename
         ))),
+    }
+}
+
+async fn compare_files(path1: PathBuf, path2: PathBuf) -> Result<bool> {
+    let ctx = SessionContext::new();
+    // TODO assumes csv for now
+    let df = ctx
+        .read_csv(path1.to_str().unwrap(), CsvReadOptions::default())
+        .await?;
+    // TODO reads results into memory .. could stream this instead
+    let batches1 = df.collect().await?;
+
+    let df = ctx
+        .read_csv(path2.to_str().unwrap(), CsvReadOptions::default())
+        .await?;
+    let batches2 = df.collect().await?;
+
+    let count1: usize = batches1.iter().map(|b| b.num_rows()).sum();
+    let count2: usize = batches2.iter().map(|b| b.num_rows()).sum();
+    if count1 == count2 {
+        let it1 = RowIter::new(batches1);
+        let it2 = RowIter::new(batches2);
+        for (i, (a, b)) in it1.zip(it2).enumerate() {
+            if a.len() == b.len() {
+                for (j, (v1, v2)) in a.iter().zip(b.iter()).enumerate() {
+                    if v1 != v2 {
+                        println!(
+                            "data does not match at row {} column {}: {:?} != {:?}",
+                            i, j, v1, v2
+                        );
+                        return Ok(false);
+                    }
+                }
+            } else {
+                println!(
+                    "row lengths do not match at index {}: {} != {}",
+                    i,
+                    a.len(),
+                    b.len()
+                );
+                return Ok(false);
+            }
+        }
+    } else {
+        println!("row counts do not match: {} != {}", count1, count2);
+        return Ok(false);
+    }
+    Ok(true)
+}
+
+struct RowIter {
+    batches: Vec<RecordBatch>,
+    current_batch: usize,
+    current_batch_offset: usize,
+}
+
+impl RowIter {
+    fn new(batches: Vec<RecordBatch>) -> Self {
+        Self {
+            batches,
+            current_batch: 0,
+            current_batch_offset: 0,
+        }
+    }
+}
+
+impl Iterator for RowIter {
+    type Item = Vec<Option<ScalarValue>>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        while self.current_batch < self.batches.len() {
+            let b = &self.batches[self.current_batch];
+            if self.current_batch_offset < b.num_rows() {
+                let mut row: Vec<Option<ScalarValue>> = Vec::with_capacity(b.num_columns());
+                let row_index = self.current_batch_offset;
+                self.current_batch_offset += 1;
+                for col_index in 0..b.num_columns() {
+                    let array = b.column(col_index);
+                    if array.is_null(row_index) {
+                        row.push(None)
+                    } else {
+                        match array.data_type() {
+                            DataType::Utf8 => {
+                                let array =
+                                    array.as_any().downcast_ref::<array::StringArray>().unwrap();
+                                row.push(Some(ScalarValue::Utf8(Some(
+                                    array.value(row_index).to_string(),
+                                ))));
+                            }
+                            // TODO introduce macros to make this concise
+                            DataType::Int8 => {
+                                let array =
+                                    array.as_any().downcast_ref::<array::Int8Array>().unwrap();
+                                row.push(Some(ScalarValue::Int8(Some(array.value(row_index)))));
+                            }
+                            DataType::Int16 => {
+                                let array =
+                                    array.as_any().downcast_ref::<array::Int16Array>().unwrap();
+                                row.push(Some(ScalarValue::Int16(Some(array.value(row_index)))));
+                            }
+                            DataType::Int32 => {
+                                let array =
+                                    array.as_any().downcast_ref::<array::Int32Array>().unwrap();
+                                row.push(Some(ScalarValue::Int32(Some(array.value(row_index)))));
+                            }
+                            DataType::Int64 => {
+                                let array =
+                                    array.as_any().downcast_ref::<array::Int64Array>().unwrap();
+                                row.push(Some(ScalarValue::Int64(Some(array.value(row_index)))));
+                            }
+                            DataType::UInt8 => {
+                                let array =
+                                    array.as_any().downcast_ref::<array::UInt8Array>().unwrap();
+                                row.push(Some(ScalarValue::UInt8(Some(array.value(row_index)))));
+                            }
+                            DataType::UInt16 => {
+                                let array =
+                                    array.as_any().downcast_ref::<array::UInt16Array>().unwrap();
+                                row.push(Some(ScalarValue::UInt16(Some(array.value(row_index)))));
+                            }
+                            DataType::UInt32 => {
+                                let array =
+                                    array.as_any().downcast_ref::<array::UInt32Array>().unwrap();
+                                row.push(Some(ScalarValue::UInt32(Some(array.value(row_index)))));
+                            }
+                            DataType::UInt64 => {
+                                let array =
+                                    array.as_any().downcast_ref::<array::UInt64Array>().unwrap();
+                                row.push(Some(ScalarValue::UInt64(Some(array.value(row_index)))));
+                            }
+                            DataType::Float32 => {
+                                let array = array
+                                    .as_any()
+                                    .downcast_ref::<array::Float32Array>()
+                                    .unwrap();
+                                row.push(Some(ScalarValue::Float32(Some(array.value(row_index)))));
+                            }
+                            DataType::Float64 => {
+                                let array = array
+                                    .as_any()
+                                    .downcast_ref::<array::Float64Array>()
+                                    .unwrap();
+                                row.push(Some(ScalarValue::Float64(Some(array.value(row_index)))));
+                            }
+                            _ => todo!("unsupported data type"),
+                        }
+                    }
+                }
+                return Some(row);
+            } else {
+                // move onto next batch
+                self.current_batch += 1;
+                self.current_batch_offset = 0;
+            }
+        }
+        None
     }
 }
