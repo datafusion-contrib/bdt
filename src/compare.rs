@@ -1,5 +1,5 @@
-use crate::utils::RowIter;
-use crate::Error;
+use crate::utils::{file_format, RowIter};
+use crate::{Error, FileFormat};
 use datafusion::arrow::record_batch::RecordBatch;
 use datafusion::common::ScalarValue;
 use datafusion::prelude::*;
@@ -14,8 +14,11 @@ pub async fn compare_files(
     epsilon: Option<f64>,
 ) -> Result<ComparisonResult, Error> {
     let ctx = SessionContext::new();
-    let batches1 = read_file(&ctx, path1.to_str().unwrap(), has_header).await?;
-    let batches2 = read_file(&ctx, path2.to_str().unwrap(), has_header).await?;
+    let filename1 = path1.to_str().unwrap();
+    let filename2 = path2.to_str().unwrap();
+    println!("Comparing {} with {}", filename1, filename2);
+    let batches1 = read_file(&ctx, filename1, has_header).await?;
+    let batches2 = read_file(&ctx, filename2, has_header).await?;
     let count1: usize = batches1.iter().map(|b| b.num_rows()).sum();
     let count2: usize = batches2.iter().map(|b| b.num_rows()).sum();
     if count1 == count2 {
@@ -115,32 +118,26 @@ async fn read_file(
     filename: &str,
     has_header: bool,
 ) -> Result<Vec<RecordBatch>, Error> {
-    if let Some(i) = filename.rfind('.') {
-        match &filename[i + 1..] {
-            "csv" => {
-                let read_options = CsvReadOptions::new().has_header(has_header);
-                ctx.read_csv(filename, read_options)
-                    .await
-                    .map_err(Error::from)?
-                    .collect()
-                    .await
-                    .map_err(Error::from)
-            }
-            "parquet" => ctx
-                .read_parquet(filename, ParquetReadOptions::default())
+    match file_format(filename)? {
+        FileFormat::Csv => {
+            let read_options = CsvReadOptions::new().has_header(has_header);
+            ctx.read_csv(filename, read_options)
                 .await
                 .map_err(Error::from)?
                 .collect()
                 .await
-                .map_err(Error::from),
-            other => Err(Error::General(format!(
-                "Unsupported file extension: {}",
-                other
-            ))),
+                .map_err(Error::from)
         }
-    } else {
-        Err(Error::General(format!(
-            "Could not determine file extension"
-        )))
+        FileFormat::Parquet => ctx
+            .read_parquet(filename, ParquetReadOptions::default())
+            .await
+            .map_err(Error::from)?
+            .collect()
+            .await
+            .map_err(Error::from),
+        other => Err(Error::General(format!(
+            "Unsupported file type for file comparison: {:?}",
+            other
+        ))),
     }
 }
