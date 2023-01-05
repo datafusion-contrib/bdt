@@ -11,6 +11,6 @@ edition = "2021"
 
 [dependencies]
 comfy-table = "6.1.2"
-datafusion = { version = "14.0", features = ["avro"] }
+datafusion = { version = "15.0", features = ["avro"] }
 structopt = "0.3"
 tokio = "1.19"
