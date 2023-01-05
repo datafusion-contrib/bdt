@@ -8,6 +8,7 @@ Command-line tool for viewing, querying, and converting between various file for
 - View contents of files
 - Run SQL queries against files
 - Convert between file formats
+- Compare contents of two files, allowing an epsilon to be provided for floating point comparisons
 - View Parquet file metadata (statistics)
 - Supports CSV, JSON, Parquet, and Avro file formats
 
@@ -34,6 +35,7 @@ FLAGS:
     -V, --version    Prints version information
 
 SUBCOMMANDS:
+    compare              Compare the contents of two files
     convert              Convert a file to a different format
     count                Show the row count of the file
     help                 Prints this message or the help of the given subcommand(s)
