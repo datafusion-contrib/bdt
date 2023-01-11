@@ -55,10 +55,17 @@ enum Command {
     },
     /// Run a SQL query against one or more files
     Query {
+        /// List of tables to register
         #[structopt(parse(from_os_str), long)]
         table: Vec<PathBuf>,
+        /// SQL Query to execute
         #[structopt(long)]
         sql: String,
+        /// Optional output filename to store results. If no path is provided then results
+        /// will be written to stdout
+        #[structopt(parse(from_os_str), long)]
+        output: Option<PathBuf>,
+        /// Enable verbose logging
         #[structopt(short, long)]
         verbose: bool,
     },
@@ -121,8 +128,9 @@ async fn main() -> Result<(), Error> {
             }
         }
         Command::Query {
-            sql,
             table,
+            sql,
+            output,
             verbose,
         } => {
             for table in &table {
@@ -132,9 +140,7 @@ async fn main() -> Result<(), Error> {
                     .to_str()
                     .ok_or_else(|| DataFusionError::Internal("Invalid filename".to_string()))?;
                 let table_name = sanitize_table_name(file_name);
-                if verbose {
-                    println!("Registering table '{}' for {}", table_name, table.display());
-                }
+                println!("Registering table '{}' for {}", table_name, table.display());
                 register_table(&ctx, &table_name, parse_filename(table)?).await?;
             }
             let df = ctx.sql(&sql).await?;
@@ -142,7 +148,30 @@ async fn main() -> Result<(), Error> {
                 let explain = df.explain(false, false)?;
                 explain.show().await?;
             }
-            df.show().await?;
+            if let Some(path) = output {
+                match path.extension() {
+                    Some(x) => match x.to_str().unwrap() {
+                        "csv" => {
+                            println!("Writing results in CSV format to {}", path.display());
+                            df.write_csv(path.to_str().unwrap()).await?
+                        }
+                        "parquet" => {
+                            println!("Writing results in Parquet format to {}", path.display());
+                            df.write_parquet(path.to_str().unwrap(), None).await?
+                        }
+                        _ => {
+                            println!("Unsupported file format for saving query results");
+                            std::process::exit(-1);
+                        }
+                    },
+                    _ => {
+                        println!("Unsupported file format for saving query results");
+                        std::process::exit(-1);
+                    }
+                }
+            } else {
+                df.show().await?;
+            }
         }
         Command::Count { table } => {
             let table_name = "__t1__";

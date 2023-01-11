@@ -106,11 +106,22 @@ Queries can be run against one or more tables. Table names are inferred from fil
 ```bash
 $ bdt query --table /mnt/bigdata/nyctaxi/yellow_tripdata_2022-01.parquet \
   --sql "SELECT COUNT(*) FROM yellow_tripdata_2022_01"
+Registering table 'yellow_tripdata_2022_01' for /mnt/bigdata/nyctaxi/yellow_tripdata_2022-01.parquet
 +-----------------+
 | COUNT(UInt8(1)) |
 +-----------------+
 | 2463931         |
 +-----------------+
+```
+
+Query results can also be written to disk by specifying an `--output` path.
+
+```bash
+$ bdt query --table /mnt/bigdata/nyctaxi/yellow_tripdata_2022-01.parquet \
+  --sql "SELECT COUNT(*) FROM yellow_tripdata_2022_01" \
+  --output results.csv
+Registering table 'yellow_tripdata_2022_01' for /mnt/bigdata/nyctaxi/yellow_tripdata_2022-01.parquet
+Writing results in CSV format to results.csv
 ```
 
 ### Convert Parquet to newline-delimited JSON
