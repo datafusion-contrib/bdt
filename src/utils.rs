@@ -12,6 +12,7 @@ pub fn file_format(filename: &str) -> Result<FileFormat, Error> {
             "csv" => Ok(FileFormat::Csv),
             "json" => Ok(FileFormat::Json),
             "parquet" => Ok(FileFormat::Parquet),
+            "parq" => Ok(FileFormat::Parquet),
             other => Err(Error::General(format!(
                 "unsupported file extension '{}'",
                 other
