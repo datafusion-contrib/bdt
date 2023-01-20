@@ -13,7 +13,7 @@
 // limitations under the License.
 
 use bdt::compare::ComparisonResult;
-use bdt::utils::{file_format, parse_filename};
+use bdt::utils::{file_ending, file_format, parse_filename};
 use bdt::{compare, Error, FileFormat};
 use comfy_table::{Cell, Table};
 use datafusion::common::DataFusionError;
@@ -366,8 +366,15 @@ async fn register_table(
                 .await?
         }
         FileFormat::Parquet => {
-            ctx.register_parquet(table_name, filename, ParquetReadOptions::default())
-                .await?
+            ctx.register_parquet(
+                table_name,
+                filename,
+                ParquetReadOptions {
+                    file_extension: &file_ending(filename)?,
+                    ..Default::default()
+                },
+            )
+            .await?
         }
     }
     ctx.table(table_name).map_err(Error::from)

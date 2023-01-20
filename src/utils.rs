@@ -6,21 +6,25 @@ use datafusion::common::ScalarValue;
 use std::path::Path;
 
 pub fn file_format(filename: &str) -> Result<FileFormat, Error> {
-    match filename.rfind('.') {
-        Some(i) => match &filename[i + 1..] {
-            "avro" => Ok(FileFormat::Avro),
-            "csv" => Ok(FileFormat::Csv),
-            "json" => Ok(FileFormat::Json),
-            "parquet" | "parq" => Ok(FileFormat::Parquet),
-            other => Err(Error::General(format!(
-                "unsupported file extension '{}'",
-                other
-            ))),
-        },
-        _ => Err(Error::General(format!(
-            "Could not determine file extension for '{}'",
-            filename
+    match file_ending(filename)?.as_str() {
+        "avro" => Ok(FileFormat::Avro),
+        "csv" => Ok(FileFormat::Csv),
+        "json" => Ok(FileFormat::Json),
+        "parquet" | "parq" => Ok(FileFormat::Parquet),
+        other => Err(Error::General(format!(
+            "unsupported file extension '{}'",
+            other
         ))),
+    }
+}
+
+pub fn file_ending(filename: &str) -> Result<String, Error> {
+    if let Some(ending) = std::path::Path::new(filename).extension() {
+        Ok(ending.to_string_lossy().to_string())
+    } else {
+        Err(Error::General(
+            "Could not determine file extension".to_string(),
+        ))
     }
 }
 
