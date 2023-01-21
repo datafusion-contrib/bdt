@@ -3,6 +3,10 @@ use datafusion::arrow::array;
 use datafusion::arrow::datatypes::DataType;
 use datafusion::arrow::record_batch::RecordBatch;
 use datafusion::common::ScalarValue;
+use datafusion::prelude::{
+    AvroReadOptions, CsvReadOptions, DataFrame, NdJsonReadOptions, ParquetReadOptions,
+    SessionContext,
+};
 use std::path::Path;
 
 pub fn file_format(filename: &str) -> Result<FileFormat, Error> {
@@ -32,6 +36,51 @@ pub fn parse_filename(filename: &Path) -> Result<&str, Error> {
     filename
         .to_str()
         .ok_or_else(|| Error::General("Invalid filename".to_string()))
+}
+
+pub fn sanitize_table_name(name: &str) -> String {
+    let mut str = String::new();
+    for ch in name.chars() {
+        if ch.is_ascii_alphanumeric() || ch == '_' {
+            str.push(ch);
+        } else {
+            str.push('_')
+        }
+    }
+    str
+}
+
+pub async fn register_table(
+    ctx: &SessionContext,
+    table_name: &str,
+    filename: &str,
+) -> Result<DataFrame, Error> {
+    match file_format(filename)? {
+        FileFormat::Avro => {
+            ctx.register_avro(table_name, filename, AvroReadOptions::default())
+                .await?
+        }
+        FileFormat::Csv => {
+            ctx.register_csv(table_name, filename, CsvReadOptions::default())
+                .await?
+        }
+        FileFormat::Json => {
+            ctx.register_json(table_name, filename, NdJsonReadOptions::default())
+                .await?
+        }
+        FileFormat::Parquet => {
+            ctx.register_parquet(
+                table_name,
+                filename,
+                ParquetReadOptions {
+                    file_extension: &file_ending(filename)?,
+                    ..Default::default()
+                },
+            )
+            .await?
+        }
+    }
+    ctx.table(table_name).await.map_err(Error::from)
 }
 
 pub struct RowIter {

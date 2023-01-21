@@ -13,15 +13,12 @@
 // limitations under the License.
 
 use bdt::compare::ComparisonResult;
-use bdt::utils::{file_ending, file_format, parse_filename};
-use bdt::{compare, Error, FileFormat};
-use comfy_table::{Cell, Table};
+use bdt::convert::convert_files;
+use bdt::parquet::view_parquet_meta;
+use bdt::utils::{parse_filename, register_table, sanitize_table_name};
+use bdt::{compare, Error};
 use datafusion::common::DataFusionError;
-use datafusion::parquet::basic::LogicalType;
-use datafusion::parquet::file::reader::{FileReader, SerializedFileReader};
-use datafusion::parquet::file::statistics::Statistics;
 use datafusion::prelude::*;
-use std::fs::File;
 use std::path::PathBuf;
 use structopt::StructOpt;
 
@@ -88,8 +85,15 @@ enum Command {
 }
 
 #[tokio::main]
-async fn main() -> Result<(), Error> {
+async fn main() {
     let cmd = Command::from_args();
+    if let Err(e) = execute_command(cmd).await {
+        println!("{:?}", e);
+        std::process::exit(-1);
+    }
+}
+
+async fn execute_command(cmd: Command) -> Result<(), Error> {
     let config = SessionConfig::new().with_information_schema(true);
     let ctx = SessionContext::with_config(config);
     match cmd {
@@ -118,13 +122,7 @@ async fn main() -> Result<(), Error> {
         Command::Convert { input, output } => {
             let input_filename = parse_filename(&input)?;
             let output_filename = parse_filename(&output)?;
-            let df = register_table(&ctx, "t", input_filename).await?;
-            match file_format(output_filename)? {
-                FileFormat::Avro => unimplemented!(),
-                FileFormat::Csv => df.write_csv(output_filename).await?,
-                FileFormat::Json => df.write_json(output_filename).await?,
-                FileFormat::Parquet => df.write_parquet(output_filename, None).await?,
-            }
+            convert_files(&ctx, input_filename, output_filename).await?;
         }
         Command::Query {
             table,
@@ -159,13 +157,15 @@ async fn main() -> Result<(), Error> {
                             df.write_parquet(path.to_str().unwrap(), None).await?
                         }
                         _ => {
-                            println!("Unsupported file format for saving query results");
-                            std::process::exit(-1);
+                            return Err(Error::General(
+                                "Unsupported file format for saving query results".to_string(),
+                            ))
                         }
                     },
                     _ => {
-                        println!("Unsupported file format for saving query results");
-                        std::process::exit(-1);
+                        return Err(Error::General(
+                            "Unsupported file format for saving query results".to_string(),
+                        ))
                     }
                 }
             } else {
@@ -191,190 +191,8 @@ async fn main() -> Result<(), Error> {
             ComparisonResult::Ok => {
                 println!("Files match");
             }
-            diff => {
-                println!("{}", diff);
-                std::process::exit(-1);
-            }
+            diff => return Err(Error::General(format!("{}", diff))),
         },
     }
     Ok(())
-}
-
-fn view_parquet_meta(path: PathBuf) -> Result<(), Error> {
-    let file = File::open(&path).map_err(Error::from)?;
-    let reader = SerializedFileReader::new(file).map_err(Error::from)?;
-
-    let parquet_metadata = reader.metadata();
-
-    let mut table = Table::new();
-    table.load_preset("||--+-++|    ++++++");
-    table.set_header(vec![Cell::new("Key"), Cell::new("Value")]);
-    let file_meta = parquet_metadata.file_metadata();
-    table.add_row(vec![
-        Cell::new("Version"),
-        Cell::new(format!("{}", file_meta.version())),
-    ]);
-    table.add_row(vec![
-        Cell::new("Created By"),
-        Cell::new(file_meta.created_by().unwrap_or("N/A")),
-    ]);
-    table.add_row(vec![
-        Cell::new("Rows"),
-        Cell::new(format!("{}", file_meta.num_rows())),
-    ]);
-    table.add_row(vec![
-        Cell::new("Row Groups"),
-        Cell::new(format!("{}", parquet_metadata.num_row_groups())),
-    ]);
-    println!("{}", table);
-
-    for i in 0..parquet_metadata.num_row_groups() {
-        let row_group_reader = reader.get_row_group(i)?;
-        let md = row_group_reader.metadata();
-        println!(
-            "\nRow Group {} of {} contains {} rows and has {} bytes:\n",
-            i,
-            parquet_metadata.num_row_groups(),
-            md.num_rows(),
-            md.total_byte_size()
-        );
-
-        let mut table = Table::new();
-        table.load_preset("||--+-++|    ++++++");
-        let header: Vec<Cell> = vec![
-            "Column Name",
-            "Logical Type",
-            "Physical Type",
-            "Distinct Values",
-            "Nulls",
-            "Min",
-            "Max",
-        ]
-        .iter()
-        .map(Cell::new)
-        .collect();
-        table.set_header(header);
-
-        let not_available = "N/A".to_string();
-        for column in md.columns() {
-            let mut row: Vec<String> = vec![];
-            row.push(column.column_descr().name().to_owned());
-            if let Some(t) = column.column_descr().logical_type() {
-                row.push(format!("{:?}", t));
-            } else {
-                row.push(not_available.clone());
-            }
-            match column.statistics() {
-                Some(stats) => {
-                    row.push(format!("{}", stats.physical_type()));
-                    if let Some(dc) = stats.distinct_count() {
-                        row.push(format!("{}", dc));
-                    } else {
-                        row.push(not_available.clone());
-                    }
-                    row.push(format!("{}", stats.null_count()));
-
-                    if stats.has_min_max_set() {
-                        match &stats {
-                            Statistics::Boolean(v) => {
-                                row.push(format!("{}", v.min()));
-                                row.push(format!("{}", v.max()));
-                            }
-                            Statistics::Int32(v) => {
-                                row.push(format!("{}", v.min()));
-                                row.push(format!("{}", v.max()));
-                            }
-                            Statistics::Int64(v) => {
-                                row.push(format!("{}", v.min()));
-                                row.push(format!("{}", v.max()));
-                            }
-                            Statistics::Float(v) => {
-                                row.push(format!("{}", v.min()));
-                                row.push(format!("{}", v.max()));
-                            }
-                            Statistics::Double(v) => {
-                                row.push(format!("{}", v.min()));
-                                row.push(format!("{}", v.max()));
-                            }
-                            Statistics::ByteArray(v) => {
-                                match column.column_descr().logical_type() {
-                                    Some(LogicalType::String) => {
-                                        let min = v.min().as_utf8().unwrap();
-                                        let max = v.min().as_utf8().unwrap();
-                                        row.push(min.to_string());
-                                        row.push(max.to_string());
-                                    }
-                                    _ => {
-                                        row.push(format!("{}", v.min()));
-                                        row.push(format!("{}", v.max()));
-                                    }
-                                }
-                            }
-                            _ => {
-                                row.push("unsupported".to_owned());
-                                row.push("unsupported".to_owned());
-                            }
-                        }
-                    } else {
-                        row.push(not_available.clone());
-                        row.push(not_available.clone());
-                    }
-                }
-                _ => {
-                    for _ in 0..5 {
-                        row.push(not_available.clone());
-                    }
-                }
-            }
-            table.add_row(row);
-        }
-
-        println!("{}", table);
-    }
-    Ok(())
-}
-
-fn sanitize_table_name(name: &str) -> String {
-    let mut str = String::new();
-    for ch in name.chars() {
-        if ch.is_ascii_alphanumeric() || ch == '_' {
-            str.push(ch);
-        } else {
-            str.push('_')
-        }
-    }
-    str
-}
-
-async fn register_table(
-    ctx: &SessionContext,
-    table_name: &str,
-    filename: &str,
-) -> Result<DataFrame, Error> {
-    match file_format(filename)? {
-        FileFormat::Avro => {
-            ctx.register_avro(table_name, filename, AvroReadOptions::default())
-                .await?
-        }
-        FileFormat::Csv => {
-            ctx.register_csv(table_name, filename, CsvReadOptions::default())
-                .await?
-        }
-        FileFormat::Json => {
-            ctx.register_json(table_name, filename, NdJsonReadOptions::default())
-                .await?
-        }
-        FileFormat::Parquet => {
-            ctx.register_parquet(
-                table_name,
-                filename,
-                ParquetReadOptions {
-                    file_extension: &file_ending(filename)?,
-                    ..Default::default()
-                },
-            )
-            .await?
-        }
-    }
-    ctx.table(table_name).await.map_err(Error::from)
 }

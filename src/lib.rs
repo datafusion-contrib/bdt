@@ -2,6 +2,8 @@ use datafusion::error::DataFusionError;
 use datafusion::parquet::errors::ParquetError;
 
 pub mod compare;
+pub mod convert;
+pub mod parquet;
 pub mod utils;
 
 #[derive(Debug)]
