@@ -23,7 +23,6 @@ use datafusion::parquet::file::statistics::Statistics;
 use datafusion::prelude::*;
 use std::fs::File;
 use std::path::PathBuf;
-use std::sync::Arc;
 use structopt::StructOpt;
 
 #[derive(Debug, StructOpt)]
@@ -145,7 +144,7 @@ async fn main() -> Result<(), Error> {
             }
             let df = ctx.sql(&sql).await?;
             if verbose {
-                let explain = df.explain(false, false)?;
+                let explain = df.clone().explain(false, false)?;
                 explain.show().await?;
             }
             if let Some(path) = output {
@@ -351,7 +350,7 @@ async fn register_table(
     ctx: &SessionContext,
     table_name: &str,
     filename: &str,
-) -> Result<Arc<DataFrame>, Error> {
+) -> Result<DataFrame, Error> {
     match file_format(filename)? {
         FileFormat::Avro => {
             ctx.register_avro(table_name, filename, AvroReadOptions::default())
@@ -377,5 +376,5 @@ async fn register_table(
             .await?
         }
     }
-    ctx.table(table_name).map_err(Error::from)
+    ctx.table(table_name).await.map_err(Error::from)
 }
