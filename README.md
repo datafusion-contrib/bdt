@@ -21,6 +21,15 @@ Powered by [Apache Arrow](https://arrow.apache.org/) and [DataFusion](https://cr
 
 ## Installation
 
+### Mac
+
+```shell
+brew tap andygrove/bdt
+brew install bdt
+```
+
+### Other Platforms
+
 ```bash
 cargo install bdt
 ```
