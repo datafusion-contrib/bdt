@@ -15,10 +15,6 @@ Powered by [Apache Arrow](https://arrow.apache.org/) and [DataFusion](https://cr
 - View Parquet file metadata (statistics)
 - Supports CSV, JSON, Parquet, and Avro file formats
 
-## Prerequisites
-
-- [Install Rust](https://rustup.rs/)
-
 ## Installation
 
 ### Mac
@@ -29,6 +25,8 @@ brew install bdt
 ```
 
 ### Other Platforms
+
+Rust must be installed first. Follow instructions at [https://rustup.rs/](https://rustup.rs/).
 
 ```bash
 cargo install bdt
