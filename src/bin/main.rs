@@ -15,7 +15,7 @@
 use bdt::compare::ComparisonResult;
 use bdt::convert::convert_files;
 use bdt::parquet::view_parquet_meta;
-use bdt::utils::{parse_filename, register_table, sanitize_table_name};
+use bdt::utils::{parse_filename, register_table, sanitize_table_name, strip_invalid_utf8};
 use bdt::{compare, Error};
 use datafusion::common::DataFusionError;
 use datafusion::prelude::*;
@@ -81,6 +81,11 @@ enum Command {
         /// Assume there is a header row by default (only applies to CSV)
         #[structopt(short, long)]
         no_header_row: bool,
+    },
+    /// Remove invalid UTF-8 characters from a text file
+    RemoveInvalidUtf8 {
+        #[structopt(parse(from_os_str))]
+        input: PathBuf,
     },
 }
 
@@ -193,6 +198,9 @@ async fn execute_command(cmd: Command) -> Result<(), Error> {
             }
             diff => return Err(Error::General(format!("{}", diff))),
         },
+        Command::RemoveInvalidUtf8 { input } => {
+            strip_invalid_utf8(input)?;
+        }
     }
     Ok(())
 }

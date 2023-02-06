@@ -7,7 +7,10 @@ use datafusion::prelude::{
     AvroReadOptions, CsvReadOptions, DataFrame, NdJsonReadOptions, ParquetReadOptions,
     SessionContext,
 };
-use std::path::Path;
+use std::fs::File;
+use std::io::BufRead;
+use std::io::BufReader;
+use std::path::{Path, PathBuf};
 
 pub fn file_format(filename: &str) -> Result<FileFormat, Error> {
     match file_ending(filename)?.as_str() {
@@ -81,6 +84,21 @@ pub async fn register_table(
         }
     }
     ctx.table(table_name).await.map_err(Error::from)
+}
+
+pub fn strip_invalid_utf8(input: PathBuf) -> Result<(), Error> {
+    let file = File::open(input)?;
+    let mut reader = BufReader::new(file);
+    let mut buf = Vec::with_capacity(8192);
+    while let Ok(_) = reader.read_until(b'\n', &mut buf) {
+        if buf.is_empty() {
+            break;
+        }
+        let line = String::from_utf8_lossy(&buf);
+        print!("{}", line);
+        buf.clear();
+    }
+    Ok(())
 }
 
 pub struct RowIter {

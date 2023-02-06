@@ -19,6 +19,6 @@ path = "src/lib.rs"
 
 [dependencies]
 comfy-table = "6.1.2"
-datafusion = { version = "16.0", features = ["avro"] }
+datafusion = { version = "17.0", features = ["avro"] }
 structopt = "0.3"
 tokio = "1.19"
