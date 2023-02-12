@@ -13,9 +13,9 @@ use std::io::BufReader;
 use std::path::{Path, PathBuf};
 
 pub fn file_format(filename: &str) -> Result<FileFormat, Error> {
-    match file_ending(filename)?.as_str() {
+    match file_ending(filename)?.to_lowercase().as_str() {
         "avro" => Ok(FileFormat::Avro),
-        "csv" => Ok(FileFormat::Csv),
+        "csv" | "tbl" | "dat" => Ok(FileFormat::Csv),
         "json" => Ok(FileFormat::Json),
         "parquet" | "parq" => Ok(FileFormat::Parquet),
         other => Err(Error::General(format!(
@@ -57,6 +57,7 @@ pub async fn register_table(
     ctx: &SessionContext,
     table_name: &str,
     filename: &str,
+    delimiter: Option<String>,
 ) -> Result<DataFrame, Error> {
     match file_format(filename)? {
         FileFormat::Avro => {
@@ -64,8 +65,9 @@ pub async fn register_table(
                 .await?
         }
         FileFormat::Csv => {
-            ctx.register_csv(table_name, filename, CsvReadOptions::default())
-                .await?
+            let options = CsvReadOptions::default()
+                .delimiter_option(delimiter.map(|s| s.chars().next().unwrap() as u8));
+            ctx.register_csv(table_name, filename, options).await?
         }
         FileFormat::Json => {
             ctx.register_json(table_name, filename, NdJsonReadOptions::default())

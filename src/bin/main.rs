@@ -31,6 +31,9 @@ enum Command {
         filename: PathBuf,
         #[structopt(short, long)]
         limit: Option<usize>,
+        /// Delimiter for CSV files
+        #[structopt(short, long)]
+        delimiter: Option<String>,
     },
     /// View schema of a file
     Schema {
@@ -43,6 +46,8 @@ enum Command {
         input: PathBuf,
         #[structopt(parse(from_os_str))]
         output: PathBuf,
+        #[structopt(short, long)]
+        output_partitions: Option<usize>,
     },
     /// Show the row count of the file
     Count {
@@ -102,9 +107,13 @@ async fn execute_command(cmd: Command) -> Result<(), Error> {
     let config = SessionConfig::new().with_information_schema(true);
     let ctx = SessionContext::with_config(config);
     match cmd {
-        Command::View { filename, limit } => {
+        Command::View {
+            filename,
+            limit,
+            delimiter,
+        } => {
             let filename = parse_filename(&filename)?;
-            let df = register_table(&ctx, "t", filename).await?;
+            let df = register_table(&ctx, "t", filename, delimiter).await?;
             let limit = limit.unwrap_or(10);
             if limit > 0 {
                 df.show_limit(limit).await?;
@@ -118,16 +127,27 @@ async fn execute_command(cmd: Command) -> Result<(), Error> {
         }
         Command::Schema { filename } => {
             let filename = parse_filename(&filename)?;
-            let _ = register_table(&ctx, "t", filename).await?;
+            let _ = register_table(&ctx, "t", filename, None).await?;
             let sql = "SELECT column_name, data_type, is_nullable \
                                 FROM information_schema.columns WHERE table_name = 't'";
             let df = ctx.sql(sql).await?;
             df.show().await?;
         }
-        Command::Convert { input, output } => {
+        Command::Convert {
+            input,
+            output,
+            output_partitions,
+        } => {
             let input_filename = parse_filename(&input)?;
             let output_filename = parse_filename(&output)?;
-            convert_files(&ctx, input_filename, output_filename).await?;
+            convert_files(
+                &ctx,
+                input_filename,
+                output_filename,
+                None,
+                output_partitions,
+            )
+            .await?;
         }
         Command::Query {
             table,
@@ -143,7 +163,7 @@ async fn execute_command(cmd: Command) -> Result<(), Error> {
                     .ok_or_else(|| DataFusionError::Internal("Invalid filename".to_string()))?;
                 let table_name = sanitize_table_name(file_name);
                 println!("Registering table '{}' for {}", table_name, table.display());
-                register_table(&ctx, &table_name, parse_filename(table)?).await?;
+                register_table(&ctx, &table_name, parse_filename(table)?, None).await?;
             }
             let df = ctx.sql(&sql).await?;
             if verbose {
@@ -179,7 +199,7 @@ async fn execute_command(cmd: Command) -> Result<(), Error> {
         }
         Command::Count { table } => {
             let table_name = "__t1__";
-            register_table(&ctx, table_name, parse_filename(&table)?).await?;
+            register_table(&ctx, table_name, parse_filename(&table)?, None).await?;
             let sql = format!("SELECT COUNT(*) FROM {}", table_name);
             let df = ctx.sql(&sql).await?;
             df.show().await?;
