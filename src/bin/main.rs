@@ -19,6 +19,7 @@ use bdt::utils::{parse_filename, register_table, sanitize_table_name};
 use bdt::{compare, Error};
 use datafusion::common::DataFusionError;
 use datafusion::prelude::*;
+use std::fs;
 use std::path::PathBuf;
 use structopt::StructOpt;
 
@@ -54,6 +55,9 @@ enum Command {
         /// List of tables to register
         #[structopt(parse(from_os_str), long)]
         table: Vec<PathBuf>,
+        /// Directory containing tables to register
+        #[structopt(parse(from_os_str), long)]
+        tables: Option<PathBuf>,
         /// SQL Query to execute
         #[structopt(long)]
         sql: String,
@@ -126,10 +130,24 @@ async fn execute_command(cmd: Command) -> Result<(), Error> {
         }
         Command::Query {
             table,
+            tables,
             sql,
             output,
             verbose,
         } => {
+            if let Some(dir) = tables {
+                let paths = fs::read_dir(&dir)?;
+                for path in paths {
+                    let path = path?.path();
+                    let file_name =
+                        path.file_stem().unwrap().to_str().ok_or_else(|| {
+                            DataFusionError::Internal("Invalid filename".to_string())
+                        })?;
+                    let table_name = sanitize_table_name(file_name);
+                    println!("Registering table '{}' for {}", table_name, path.display());
+                    register_table(&ctx, &table_name, parse_filename(&path)?).await?;
+                }
+            }
             for table in &table {
                 let file_name = table
                     .file_stem()
