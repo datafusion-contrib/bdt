@@ -121,6 +121,29 @@ Registering table 'yellow_tripdata_2022_01' for /mnt/bigdata/nyctaxi/yellow_trip
 +-----------------+
 ```
 
+Use the `--tables` option to register all files/directories in one directory as tables, and use the `--sql-file` option 
+to load a query from disk.
+
+```bash
+$ bdt query --tables /mnt/bigdata/tpch/sf10-parquet/ --sql-file /home/andy/git/sql-benchmarks/sqlbench-h/queries/sf=10/q1.sql`
+Registering table 'supplier' for /mnt/bigdata/tpch/sf10-parquet/supplier.parquet
+Registering table 'part' for /mnt/bigdata/tpch/sf10-parquet/part.parquet
+Registering table 'partsupp' for /mnt/bigdata/tpch/sf10-parquet/partsupp.parquet
+Registering table 'nation' for /mnt/bigdata/tpch/sf10-parquet/nation.parquet
+Registering table 'region' for /mnt/bigdata/tpch/sf10-parquet/region.parquet
+Registering table 'orders' for /mnt/bigdata/tpch/sf10-parquet/orders.parquet
+Registering table 'lineitem' for /mnt/bigdata/tpch/sf10-parquet/lineitem.parquet
+Registering table 'customer' for /mnt/bigdata/tpch/sf10-parquet/customer.parquet
++--------------+--------------+--------------+------------------+--------------------+----------------------+-----------+--------------+----------+-------------+
+| l_returnflag | l_linestatus | sum_qty      | sum_base_price   | sum_disc_price     | sum_charge           | avg_qty   | avg_price    | avg_disc | count_order |
++--------------+--------------+--------------+------------------+--------------------+----------------------+-----------+--------------+----------+-------------+
+| A            | F            | 377518277.00 | 566065563002.85  | 537758943278.1740  | 559276505545.688411  | 25.500977 | 38237.155374 | 0.050006 | 14804071    |
+| N            | F            | 9851614.00   | 14767438399.17   | 14028805792.2114   | 14590490998.366737   | 25.522448 | 38257.810660 | 0.049973 | 385998      |
+| N            | O            | 730783087.00 | 1095795289143.27 | 1041001162690.9297 | 1082653834336.561576 | 25.497622 | 38233.198852 | 0.049999 | 28660832    |
+| R            | F            | 377732634.00 | 566430710070.73  | 538110604499.8196  | 559634448619.890015  | 25.508381 | 38251.211480 | 0.049996 | 14808177    |
++--------------+--------------+--------------+------------------+--------------------+----------------------+-----------+--------------+----------+-------------+
+```
+
 Query results can also be written to disk by specifying an `--output` path.
 
 ```bash
