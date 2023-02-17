@@ -58,9 +58,12 @@ enum Command {
         /// Directory containing tables to register
         #[structopt(parse(from_os_str), long)]
         tables: Option<PathBuf>,
-        /// SQL Query to execute
+        /// SQL query to execute
         #[structopt(long)]
-        sql: String,
+        sql: Option<String>,
+        /// File containing SQL query to execute
+        #[structopt(parse(from_os_str), long)]
+        sql_file: Option<PathBuf>,
         /// Optional output filename to store results. If no path is provided then results
         /// will be written to stdout
         #[structopt(parse(from_os_str), long)]
@@ -132,6 +135,7 @@ async fn execute_command(cmd: Command) -> Result<(), Error> {
             table,
             tables,
             sql,
+            sql_file,
             output,
             verbose,
         } => {
@@ -158,6 +162,11 @@ async fn execute_command(cmd: Command) -> Result<(), Error> {
                 println!("Registering table '{}' for {}", table_name, table.display());
                 register_table(&ctx, &table_name, parse_filename(table)?).await?;
             }
+            let sql = match (sql, sql_file) {
+                (Some(text), None) => text,
+                (None, Some(file)) => fs::read_to_string(file)?,
+                _ => panic!("Must specify either sql or sql_file, but not both"),
+            };
             let df = ctx.sql(&sql).await?;
             if verbose {
                 let explain = df.clone().explain(false, false)?;
