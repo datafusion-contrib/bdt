@@ -56,6 +56,9 @@ pub async fn register_table(
     filename: &str,
 ) -> Result<DataFrame, Error> {
     match file_format(filename)? {
+        FileFormat::Arrow => {
+            unimplemented!()
+        }
         FileFormat::Avro => {
             ctx.register_avro(table_name, filename, AvroReadOptions::default())
                 .await?

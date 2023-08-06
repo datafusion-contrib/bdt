@@ -34,6 +34,7 @@ impl From<std::io::Error> for Error {
 
 #[derive(Debug)]
 pub enum FileFormat {
+    Arrow,
     Avro,
     Csv,
     Json,

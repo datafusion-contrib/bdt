@@ -18,5 +18,6 @@ pub async fn convert_files(
             .write_parquet(output_filename, None)
             .await
             .map_err(|e| e.into()),
+        FileFormat::Arrow => unimplemented!(),
     }
 }
