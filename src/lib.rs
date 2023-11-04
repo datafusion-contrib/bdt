@@ -4,6 +4,7 @@ use datafusion::parquet::errors::ParquetError;
 pub mod compare;
 pub mod convert;
 pub mod parquet;
+pub mod repartition;
 pub mod utils;
 
 #[derive(Debug)]

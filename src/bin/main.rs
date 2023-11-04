@@ -15,6 +15,7 @@
 use bdt::compare::ComparisonResult;
 use bdt::convert::convert_files;
 use bdt::parquet::view_parquet_meta;
+use bdt::repartition::repartition;
 use bdt::utils::{parse_filename, register_table, sanitize_table_name};
 use bdt::{compare, Error};
 use datafusion::common::DataFusionError;
@@ -88,6 +89,15 @@ enum Command {
         /// Assume there is a header row by default (only applies to CSV)
         #[structopt(short, long)]
         no_header_row: bool,
+    },
+    /// Repartition files
+    Repartition {
+        #[structopt(short, long)]
+        num_partitions: usize,
+        #[structopt(parse(from_os_str))]
+        input: PathBuf,
+        #[structopt(parse(from_os_str))]
+        output: PathBuf,
     },
 }
 
@@ -220,6 +230,15 @@ async fn execute_command(cmd: Command) -> Result<(), Error> {
             }
             diff => return Err(Error::General(format!("{}", diff))),
         },
+        Command::Repartition {
+            num_partitions,
+            input,
+            output,
+        } => {
+            let input_filename = parse_filename(&input)?;
+            let output_filename = parse_filename(&output)?;
+            repartition(&ctx, num_partitions, input_filename, output_filename).await?
+        }
     }
     Ok(())
 }
