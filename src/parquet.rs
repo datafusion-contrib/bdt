@@ -47,7 +47,7 @@ pub fn view_parquet_meta(path: PathBuf) -> Result<(), Error> {
 
         let mut table = Table::new();
         table.load_preset("||--+-++|    ++++++");
-        let header: Vec<Cell> = vec![
+        let header: Vec<Cell> = [
             "Column Name",
             "Logical Type",
             "Physical Type",

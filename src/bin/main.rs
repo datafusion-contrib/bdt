@@ -18,6 +18,7 @@ use bdt::parquet::view_parquet_meta;
 use bdt::utils::{parse_filename, register_table, sanitize_table_name};
 use bdt::{compare, Error};
 use datafusion::common::DataFusionError;
+use datafusion::dataframe::DataFrameWriteOptions;
 use datafusion::prelude::*;
 use std::fs;
 use std::path::PathBuf;
@@ -102,7 +103,7 @@ async fn main() {
 
 async fn execute_command(cmd: Command) -> Result<(), Error> {
     let config = SessionConfig::new().with_information_schema(true);
-    let ctx = SessionContext::with_config(config);
+    let ctx = SessionContext::new_with_config(config);
     match cmd {
         Command::View { filename, limit } => {
             let filename = parse_filename(&filename)?;
@@ -177,11 +178,23 @@ async fn execute_command(cmd: Command) -> Result<(), Error> {
                     Some(x) => match x.to_str().unwrap() {
                         "csv" => {
                             println!("Writing results in CSV format to {}", path.display());
-                            df.write_csv(path.to_str().unwrap()).await?
+                            let _ = df
+                                .write_csv(
+                                    path.to_str().unwrap(),
+                                    DataFrameWriteOptions::default(),
+                                    None,
+                                )
+                                .await?;
                         }
                         "parquet" => {
                             println!("Writing results in Parquet format to {}", path.display());
-                            df.write_parquet(path.to_str().unwrap(), None).await?
+                            let _ = df
+                                .write_parquet(
+                                    path.to_str().unwrap(),
+                                    DataFrameWriteOptions::default(),
+                                    None,
+                                )
+                                .await?;
                         }
                         _ => {
                             return Err(Error::General(
