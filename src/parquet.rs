@@ -106,7 +106,7 @@ pub fn view_parquet_meta(path: PathBuf) -> Result<(), Error> {
                                 match column.column_descr().logical_type() {
                                     Some(LogicalType::String) => {
                                         let min = v.min().as_utf8().unwrap();
-                                        let max = v.min().as_utf8().unwrap();
+                                        let max = v.max().as_utf8().unwrap();
                                         row.push(min.to_string());
                                         row.push(max.to_string());
                                     }
