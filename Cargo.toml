@@ -22,3 +22,4 @@ comfy-table = "6.1.2"
 datafusion = { version = "33.0", features = ["avro"] }
 structopt = "0.3"
 tokio = "1.19"
+thiserror = "1"
