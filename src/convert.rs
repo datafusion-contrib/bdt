@@ -8,9 +8,10 @@ pub async fn convert_files(
     ctx: &SessionContext,
     input_filename: &str,
     output_filename: &str,
+    one_file: bool
 ) -> Result<Vec<RecordBatch>, Error> {
     let df = register_table(ctx, "t", input_filename).await?;
-    let write_options = DataFrameWriteOptions::default();
+    let write_options = DataFrameWriteOptions::default().with_single_file_output(one_file);
     match file_format(output_filename)? {
         FileFormat::Avro => Err(Error::General(
             "Conversion to Avro is not supported".to_string(),
