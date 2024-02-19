@@ -15,10 +15,24 @@ pub async fn convert_files(
     ctx: &SessionContext,
     input_filename: &str,
     output_filename: &str,
-    one_file: bool
+    single_file: bool,
+    zstd: bool,
 ) -> Result<Vec<RecordBatch>, Error> {
     let df = register_table(ctx, "t", input_filename).await?;
-    let write_options = DataFrameWriteOptions::default().with_single_file_output(one_file);
+    let write_options = DataFrameWriteOptions::default().with_single_file_output(single_file);
+    let props = if zstd {
+        WriterProperties::builder()
+            .set_created_by("bdt".to_string())
+            .set_encoding(Encoding::PLAIN)
+            .set_compression(Compression::ZSTD(ZstdLevel::try_new(8)?))
+            .build()
+    } else {
+        WriterProperties::builder()
+            .set_created_by("bdt".to_string())
+            .set_encoding(Encoding::PLAIN)
+            .build()
+    };
+
     match file_format(output_filename)? {
         FileFormat::Avro => Err(Error::General(
             "Conversion to Avro is not supported".to_string(),
@@ -32,7 +46,7 @@ pub async fn convert_files(
             .await
             .map_err(|e| e.into()),
         FileFormat::Parquet => df
-            .write_parquet(output_filename, write_options, None)
+            .write_parquet(output_filename, write_options, Some(props))
             .await
             .map_err(|e| e.into()),
         FileFormat::Arrow => unimplemented!(),

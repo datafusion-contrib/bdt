@@ -43,6 +43,8 @@ enum Command {
     Convert {
         #[structopt(short, long)]
         single_file: bool,
+        #[structopt(short, long)]
+        zstd: bool,
         #[structopt(parse(from_os_str))]
         input: PathBuf,
         #[structopt(parse(from_os_str))]
@@ -133,10 +135,11 @@ async fn execute_command(cmd: Command) -> Result<(), Error> {
             single_file,
             input,
             output,
+            zstd,
         } => {
             let input_filename = parse_filename(&input)?;
             let output_filename = parse_filename(&output)?;
-            convert_files(&ctx, input_filename, output_filename, single_file).await?;
+            convert_files(&ctx, input_filename, output_filename, single_file, zstd).await?;
         }
         Command::Query {
             table,
