@@ -129,7 +129,11 @@ async fn execute_command(cmd: Command) -> Result<(), Error> {
             let df = ctx.sql(sql).await?;
             df.show().await?;
         }
-        Command::Convert { single_file, input, output } => {
+        Command::Convert {
+            single_file,
+            input,
+            output,
+        } => {
             let input_filename = parse_filename(&input)?;
             let output_filename = parse_filename(&output)?;
             convert_files(&ctx, input_filename, output_filename, single_file).await?;
