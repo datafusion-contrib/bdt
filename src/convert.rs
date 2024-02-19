@@ -1,8 +1,15 @@
 use crate::utils::{file_format, register_table};
 use crate::{Error, FileFormat};
-use datafusion::arrow::record_batch::RecordBatch;
-use datafusion::dataframe::DataFrameWriteOptions;
+
 use datafusion::prelude::SessionContext;
+use datafusion::{
+    arrow::record_batch::RecordBatch,
+    dataframe::DataFrameWriteOptions,
+    parquet::{
+        basic::{Compression, Encoding, ZstdLevel},
+        file::properties::WriterProperties,
+    },
+};
 
 pub async fn convert_files(
     ctx: &SessionContext,
