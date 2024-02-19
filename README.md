@@ -166,7 +166,7 @@ $ cat /path/to/output.json
 ### View Parquet File Metadata
 
 ```bash
-$ bdt --view-parquet-meta /mnt/bigdata/tpcds/sf100-parquet/store_sales.parquet/part-00000-cff04137-32a6-4e5b-811a-668f5d4b1802-c000.snappy.parquet
+$ bdt view-parquet-meta /mnt/bigdata/tpcds/sf100-parquet/store_sales.parquet/part-00000-cff04137-32a6-4e5b-811a-668f5d4b1802-c000.snappy.parquet
 
 +------------+----------------------------------------------------------------------------+
 | Key        | Value                                                                      |
