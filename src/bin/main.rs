@@ -41,8 +41,10 @@ enum Command {
     },
     /// Convert a file to a different format
     Convert {
+        /// Output in a single file
         #[structopt(short, long)]
         single_file: bool,
+        /// Enable Zstd compression
         #[structopt(short, long)]
         zstd: bool,
         #[structopt(parse(from_os_str))]
