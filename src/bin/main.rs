@@ -42,7 +42,7 @@ enum Command {
     /// Convert a file to a different format
     Convert {
         #[structopt(short, long)]
-        one_file: bool,
+        single_file: bool,
         #[structopt(parse(from_os_str))]
         input: PathBuf,
         #[structopt(parse(from_os_str))]
@@ -129,10 +129,10 @@ async fn execute_command(cmd: Command) -> Result<(), Error> {
             let df = ctx.sql(sql).await?;
             df.show().await?;
         }
-        Command::Convert { one_file, input, output } => {
+        Command::Convert { single_file, input, output } => {
             let input_filename = parse_filename(&input)?;
             let output_filename = parse_filename(&output)?;
-            convert_files(&ctx, input_filename, output_filename, one_file).await?;
+            convert_files(&ctx, input_filename, output_filename, single_file).await?;
         }
         Command::Query {
             table,
