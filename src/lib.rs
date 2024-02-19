@@ -6,30 +6,16 @@ pub mod convert;
 pub mod parquet;
 pub mod utils;
 
-#[derive(Debug)]
+#[derive(Debug, thiserror::Error)]
 pub enum Error {
+    #[error("{0}")]
     General(String),
-    DataFusion(DataFusionError),
-    Parquet(ParquetError),
-    IoError(std::io::Error),
-}
-
-impl From<DataFusionError> for Error {
-    fn from(e: DataFusionError) -> Self {
-        Self::DataFusion(e)
-    }
-}
-
-impl From<ParquetError> for Error {
-    fn from(e: ParquetError) -> Self {
-        Self::Parquet(e)
-    }
-}
-
-impl From<std::io::Error> for Error {
-    fn from(e: std::io::Error) -> Self {
-        Self::IoError(e)
-    }
+    #[error("Data Fusion error: {0}")]
+    DataFusion(#[from] DataFusionError),
+    #[error("Parquet error: {0}")]
+    Parquet(#[from] ParquetError),
+    #[error("I/O error: {0}")]
+    IoError(#[from] std::io::Error),
 }
 
 #[derive(Debug)]

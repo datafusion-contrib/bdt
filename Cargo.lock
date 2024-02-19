@@ -419,6 +419,7 @@ dependencies = [
  "comfy-table 6.2.0",
  "datafusion",
  "structopt",
+ "thiserror",
  "tokio",
 ]
 
