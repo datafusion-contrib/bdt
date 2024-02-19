@@ -17,15 +17,6 @@ Powered by [Apache Arrow](https://arrow.apache.org/) and [DataFusion](https://cr
 
 ## Installation
 
-### Mac
-
-```shell
-brew tap andygrove/bdt
-brew install bdt
-```
-
-### Other Platforms
-
 Rust must be installed first. Follow instructions at [https://rustup.rs/](https://rustup.rs/).
 
 ```bash
@@ -121,7 +112,7 @@ Registering table 'yellow_tripdata_2022_01' for /mnt/bigdata/nyctaxi/yellow_trip
 +-----------------+
 ```
 
-Use the `--tables` option to register all files/directories in one directory as tables, and use the `--sql-file` option 
+Use the `--tables` option to register all files/directories in one directory as tables, and use the `--sql-file` option
 to load a query from disk.
 
 ```bash
