@@ -7,29 +7,29 @@ use datafusion::prelude::{
     AvroReadOptions, CsvReadOptions, DataFrame, NdJsonReadOptions, ParquetReadOptions,
     SessionContext,
 };
+use file_format::FileFormat as DetectFileFormat;
 use std::path::Path;
 
 pub fn file_format(filename: &str) -> Result<FileFormat, Error> {
-    match file_ending(filename)?.as_str() {
-        "avro" => Ok(FileFormat::Avro),
-        "csv" => Ok(FileFormat::Csv),
-        "json" => Ok(FileFormat::Json),
-        "parquet" | "parq" => Ok(FileFormat::Parquet),
-        other => Err(Error::General(format!(
-            "unsupported file extension '{}'",
-            other
-        ))),
+    match DetectFileFormat::from_file(filename)? {
+        DetectFileFormat::ApacheAvro => Ok(FileFormat::Avro),
+        DetectFileFormat::ApacheParquet => Ok(FileFormat::Parquet),
+        DetectFileFormat::PlainText => match file_ending(filename)?.as_str() {
+            "json" => Ok(FileFormat::Json),
+            "csv" => Ok(FileFormat::Csv),
+            other => Err(Error::General(format!(
+                "unsupported file extension '{}'",
+                other
+            ))),
+        },
+        other => Err(Error::General(format!("unsupported file type '{}'", other))),
     }
 }
 
 pub fn file_ending(filename: &str) -> Result<String, Error> {
-    if let Some(ending) = std::path::Path::new(filename).extension() {
-        Ok(ending.to_string_lossy().to_string())
-    } else {
-        Err(Error::General(
-            "Could not determine file extension".to_string(),
-        ))
-    }
+    Ok(std::path::Path::new(filename)
+        .extension()
+        .map_or_else(|| "".to_owned(), |e| e.to_string_lossy().to_string()))
 }
 
 pub fn parse_filename(filename: &Path) -> Result<&str, Error> {

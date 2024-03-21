@@ -23,3 +23,4 @@ datafusion = { version = "35.0", features = ["avro"] }
 structopt = "0.3"
 tokio = { version = "1.36", features = ["rt-multi-thread"] }
 thiserror = "1"
+file-format = { version = "0.24.0", features = ["reader-txt"] }
