@@ -418,6 +418,7 @@ version = "0.18.0"
 dependencies = [
  "comfy-table 6.2.0",
  "datafusion",
+ "file-format",
  "structopt",
  "thiserror",
  "tokio",
@@ -1017,6 +1018,12 @@ name = "fastrand"
 version = "2.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6999dc1837253364c2ebb0704ba97994bd874e8f195d665c50b7548f6ea92764"
+
+[[package]]
+name = "file-format"
+version = "0.24.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4ba1b81b3c213cf1c071f8bf3b83531f310df99642e58c48247272eef006cae5"
 
 [[package]]
 name = "fixedbitset"
