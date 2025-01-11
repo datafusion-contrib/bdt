@@ -108,7 +108,11 @@ async fn main() {
 }
 
 async fn execute_command(cmd: Command) -> Result<(), Error> {
-    let config = SessionConfig::new().with_information_schema(true);
+    let config = SessionConfig::new()
+        // Configuration Settings
+        // https://datafusion.apache.org/user-guide/configs.html
+        .set_bool("datafusion.sql_parser.enable_ident_normalization", false)
+        .with_information_schema(true);
     let ctx = SessionContext::new_with_config(config);
     match cmd {
         Command::View { filename, limit } => {
