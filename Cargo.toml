@@ -23,3 +23,6 @@ datafusion = { version = "35.0", features = ["avro"] }
 structopt = "0.3"
 tokio = { version = "1.36", features = ["rt-multi-thread"] }
 thiserror = "1"
+# arrow-arith 50 defines ChronoDateExt::quarter; chrono 0.4.39+ added Datelike::quarter
+# and the two conflict. Pin until datafusion/arrow are upgraded.
+chrono = "=0.4.38"
