@@ -67,7 +67,7 @@ pub async fn register_table(
                 .await?
         }
         FileFormat::Json => {
-            ctx.register_json(table_name, filename, NdJsonReadOptions::default())
+            ctx.register_json(table_name, filename, JsonReadOptions::default())
                 .await?
         }
         FileFormat::Parquet => {
