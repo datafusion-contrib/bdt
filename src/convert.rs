@@ -4,11 +4,11 @@ use crate::{Error, FileFormat};
 use datafusion::prelude::SessionContext;
 use datafusion::{
     arrow::record_batch::RecordBatch,
-    dataframe::DataFrameWriteOptions,
-    parquet::{
-        basic::{Compression, Encoding, ZstdLevel},
-        file::properties::WriterProperties,
+    common::{
+        config::TableParquetOptions,
+        parquet_config::{DFParquetCompression, DFParquetEncoding},
     },
+    dataframe::DataFrameWriteOptions,
 };
 
 pub async fn convert_files(
@@ -20,18 +20,6 @@ pub async fn convert_files(
 ) -> Result<Vec<RecordBatch>, Error> {
     let df = register_table(ctx, "t", input_filename).await?;
     let write_options = DataFrameWriteOptions::default().with_single_file_output(single_file);
-    let props = if zstd {
-        WriterProperties::builder()
-            .set_created_by("bdt".to_string())
-            .set_encoding(Encoding::PLAIN)
-            .set_compression(Compression::ZSTD(ZstdLevel::try_new(8)?))
-            .build()
-    } else {
-        WriterProperties::builder()
-            .set_created_by("bdt".to_string())
-            .set_encoding(Encoding::PLAIN)
-            .build()
-    };
 
     match file_format(output_filename)? {
         FileFormat::Avro => Err(Error::General(
@@ -42,13 +30,22 @@ pub async fn convert_files(
             .await
             .map_err(|e| e.into()),
         FileFormat::Json => df
-            .write_json(output_filename, write_options)
+            .write_json(output_filename, write_options, None)
             .await
             .map_err(|e| e.into()),
-        FileFormat::Parquet => df
-            .write_parquet(output_filename, write_options, Some(props))
-            .await
-            .map_err(|e| e.into()),
+        FileFormat::Parquet => {
+            let mut options = TableParquetOptions::default();
+            options.global.created_by = "bdt".to_string();
+            options.global.encoding = Some(DFParquetEncoding::Plain);
+            options.global.compression = Some(if zstd {
+                DFParquetCompression::Zstd(8)
+            } else {
+                DFParquetCompression::Uncompressed
+            });
+            df.write_parquet(output_filename, write_options, Some(options))
+                .await
+                .map_err(Error::from)
+        }
         FileFormat::Arrow => unimplemented!(),
     }
 }
