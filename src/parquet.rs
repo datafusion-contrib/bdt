@@ -2,7 +2,8 @@ use crate::Error;
 use comfy_table::{Cell, Table};
 use datafusion::parquet::basic::LogicalType;
 use datafusion::parquet::file::reader::{FileReader, SerializedFileReader};
-use datafusion::parquet::file::statistics::Statistics;
+use datafusion::parquet::file::statistics::{Statistics, ValueStatistics};
+use std::fmt::Display;
 use std::fs::File;
 use std::path::PathBuf;
 
@@ -65,7 +66,8 @@ pub fn view_parquet_meta(path: PathBuf) -> Result<(), Error> {
         for column in md.columns() {
             let mut row: Vec<String> = vec![];
             row.push(column.column_descr().name().to_owned());
-            if let Some(t) = column.column_descr().logical_type() {
+            let logical_type = column.column_descr().logical_type_ref();
+            if let Some(t) = logical_type {
                 row.push(format!("{:?}", t));
             } else {
                 row.push(not_available.clone());
@@ -73,58 +75,29 @@ pub fn view_parquet_meta(path: PathBuf) -> Result<(), Error> {
             match column.statistics() {
                 Some(stats) => {
                     row.push(format!("{}", stats.physical_type()));
-                    if let Some(dc) = stats.distinct_count() {
-                        row.push(format!("{}", dc));
-                    } else {
-                        row.push(not_available.clone());
-                    }
-                    row.push(format!("{}", stats.null_count()));
+                    row.push(format_stat(stats.distinct_count_opt()));
+                    row.push(format_stat(stats.null_count_opt()));
 
-                    if stats.has_min_max_set() {
-                        match &stats {
-                            Statistics::Boolean(v) => {
-                                row.push(format!("{}", v.min()));
-                                row.push(format!("{}", v.max()));
-                            }
-                            Statistics::Int32(v) => {
-                                row.push(format!("{}", v.min()));
-                                row.push(format!("{}", v.max()));
-                            }
-                            Statistics::Int64(v) => {
-                                row.push(format!("{}", v.min()));
-                                row.push(format!("{}", v.max()));
-                            }
-                            Statistics::Float(v) => {
-                                row.push(format!("{}", v.min()));
-                                row.push(format!("{}", v.max()));
-                            }
-                            Statistics::Double(v) => {
-                                row.push(format!("{}", v.min()));
-                                row.push(format!("{}", v.max()));
-                            }
-                            Statistics::ByteArray(v) => {
-                                match column.column_descr().logical_type() {
-                                    Some(LogicalType::String) => {
-                                        let min = v.min().as_utf8().unwrap();
-                                        let max = v.max().as_utf8().unwrap();
-                                        row.push(min.to_string());
-                                        row.push(max.to_string());
-                                    }
-                                    _ => {
-                                        row.push(format!("{}", v.min()));
-                                        row.push(format!("{}", v.max()));
-                                    }
-                                }
-                            }
-                            _ => {
-                                row.push("unsupported".to_owned());
-                                row.push("unsupported".to_owned());
-                            }
+                    let bounds = match stats {
+                        Statistics::Boolean(v) => format_bounds(v),
+                        Statistics::Int32(v) => format_bounds(v),
+                        Statistics::Int64(v) => format_bounds(v),
+                        Statistics::Float(v) => format_bounds(v),
+                        Statistics::Double(v) => format_bounds(v),
+                        Statistics::ByteArray(v)
+                            if matches!(logical_type, Some(LogicalType::String)) =>
+                        {
+                            [v.min_opt(), v.max_opt()].map(|value| {
+                                format_stat(
+                                    value.map(|bytes| String::from_utf8_lossy(bytes.data())),
+                                )
+                            })
                         }
-                    } else {
-                        row.push(not_available.clone());
-                        row.push(not_available.clone());
-                    }
+                        Statistics::ByteArray(v) => format_bounds(v),
+                        _ => [stats.min_bytes_opt(), stats.max_bytes_opt()]
+                            .map(|value| format_stat(value.map(|_| "unsupported"))),
+                    };
+                    row.extend(bounds);
                 }
                 _ => {
                     for _ in 0..5 {
@@ -138,4 +111,12 @@ pub fn view_parquet_meta(path: PathBuf) -> Result<(), Error> {
         println!("{}", table);
     }
     Ok(())
+}
+
+fn format_stat(value: Option<impl Display>) -> String {
+    value.map_or_else(|| "N/A".to_owned(), |value| value.to_string())
+}
+
+fn format_bounds<T: Display>(stats: &ValueStatistics<T>) -> [String; 2] {
+    [stats.min_opt(), stats.max_opt()].map(format_stat)
 }
