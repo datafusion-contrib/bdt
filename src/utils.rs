@@ -4,8 +4,7 @@ use datafusion::arrow::datatypes::DataType;
 use datafusion::arrow::record_batch::RecordBatch;
 use datafusion::common::ScalarValue;
 use datafusion::prelude::{
-    AvroReadOptions, CsvReadOptions, DataFrame, NdJsonReadOptions, ParquetReadOptions,
-    SessionContext,
+    AvroReadOptions, CsvReadOptions, DataFrame, JsonReadOptions, ParquetReadOptions, SessionContext,
 };
 use std::path::Path;
 
@@ -121,6 +120,15 @@ impl Iterator for RowIter {
                             DataType::Utf8 => {
                                 let array =
                                     array.as_any().downcast_ref::<array::StringArray>().unwrap();
+                                row.push(ScalarValue::Utf8(Some(
+                                    array.value(row_index).to_string(),
+                                )));
+                            }
+                            DataType::Utf8View => {
+                                let array = array
+                                    .as_any()
+                                    .downcast_ref::<array::StringViewArray>()
+                                    .unwrap();
                                 row.push(ScalarValue::Utf8(Some(
                                     array.value(row_index).to_string(),
                                 )));
